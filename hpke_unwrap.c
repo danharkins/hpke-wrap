@@ -91,9 +91,9 @@ s2os (char *str, unsigned char **os, int *oslen)
 int
 main (int argc, char **argv)
 {
-    int x, b64 = 0;
+    int x, b64 = 0, pad = 0;
     hpke_ctx *ctx = NULL;
-    unsigned char *a = NULL, *i = NULL, *c = NULL, *k = NULL, *ikmR = NULL;
+    unsigned char *a = NULL, *i = NULL, *c = NULL, *k = NULL, *r = NULL, *ikmR = NULL;
     unsigned char *aad = NULL, *info = NULL, *pt = NULL, *ct = NULL, *pkS = NULL;
     int aad_len = 0, info_len = 0, t_len = 0, pkS_len = 0, ikmR_len = 0, strength = 0, debug = 0;
 
@@ -113,7 +113,7 @@ main (int argc, char **argv)
                 c = optarg;
                 break;
             case 'r':
-                s2os(optarg, &ikmR, &ikmR_len);
+                r = optarg;
                 break;
             case'k':
                 k = optarg;
@@ -145,7 +145,7 @@ main (int argc, char **argv)
     /*
      * sanity check...
      */
-    if ((c == NULL) || (k == NULL) || (ikmR == NULL) || (strength == 0)) {
+    if ((c == NULL) || (k == NULL) || (r == NULL) || (strength == 0)) {
         fprintf(stderr, "%s: at a minimum you need to specify ciphertext, "
                 "a recipient public key, a key to derive your private key, and strength\n",
                 argv[0]);
@@ -157,29 +157,60 @@ main (int argc, char **argv)
                 fprintf(stderr, "%s: cannot allocate space for AAD!\n", argv[0]);
                 exit(1);
             }
+            memset(aad, 0, strlen(a));
             aad_len = EVP_DecodeBlock(aad, a, strlen(a));
-            aad_len--;
+            pad = strlen(a);
+            while (a[pad - 1] == '=') {
+                aad_len--;
+                pad--;
+            }
         }
         if (i != NULL) {
             if ((info = (unsigned char *)malloc(strlen(i))) == NULL) {
                 fprintf(stderr, "%s: cannot allocate space for info!\n", argv[0]);
                 exit(1);
             }
+            memset(info, 0, strlen(i));
             info_len = EVP_DecodeBlock(info, i, strlen(i));
-            info_len--;
+            pad = strlen(i);
+            while (i[pad - 1] == '=') {
+                info_len--;
+                pad--;
+            }
+        }
+        if ((ikmR = (unsigned char *)malloc(strlen(r))) == NULL) {
+            fprintf(stderr, "%s: cannot allocate space for keying material!\n", argv[0]);
+            exit(1);
+        }
+        memset(ikmR, 0, strlen(r));
+        ikmR_len = EVP_DecodeBlock(ikmR, r, strlen(r));
+        pad = strlen(r);
+        while(r[pad - 1] == '=') {
+            ikmR_len--;
+            pad--;
         }
         if ((pkS = (unsigned char *)malloc(strlen(k))) == NULL) {
             fprintf(stderr, "%s: cannot allocate space for public key!\n", argv[0]);
             exit(1);
         }
+        memset(pkS, 0, strlen(k));
         pkS_len = EVP_DecodeBlock(pkS, k, strlen(k));
-        pkS_len--;
+        pad = strlen(k);
+        while (k[pad - 1] == '=') {
+            pkS_len--;
+            pad--;
+        }
         if ((ct = (unsigned char *)malloc(strlen(c))) == NULL) {
             fprintf(stderr, "%s: cannot allocate space for ciphertext!\n", argv[0]);
             exit(1);
         }
+        memset(ct, 0, strlen(c));
         t_len = EVP_DecodeBlock(ct, c, strlen(c));
-        t_len--;
+        pad = strlen(c);
+        while (c[pad - 1] == '=') {
+            t_len--;
+            pad--;
+        }
     } else {
         if (a != NULL) {
             s2os(a, &aad, &aad_len);
@@ -187,6 +218,7 @@ main (int argc, char **argv)
         if (i != NULL) {
             s2os(i, &info, &info_len);
         }
+        s2os(r, &ikmR, &ikmR_len);
         s2os(k, &pkS, &pkS_len);
         s2os(c, &ct, &t_len);
     }
@@ -220,7 +252,6 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    print_buffer("pkS", pkS, pkS_len);
     if (receiver(ctx, pkS, pkS_len, info, info_len) < 1) {
         fprintf(stderr, "%s: can't do decap!\n", argv[0]);
         exit(1);

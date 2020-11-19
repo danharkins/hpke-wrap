@@ -119,18 +119,18 @@ main (int argc, char **argv)
     }
 
     if (b64) {
-        if ((b64pk = (unsigned char *)malloc(pk_len*3)) == NULL) {
+        if ((b64pk = (unsigned char *)malloc(pk_len*2)) == NULL) {
             fprintf(stderr, "%s: unable to allocate room to encode ephemeral public key!\n", argv[0]);
             exit(1);
         }
-        memset(b64pk, 0, (pk_len*3));
+        memset(b64pk, 0, (pk_len*2));
         b64pk_len = EVP_EncodeBlock(b64pk, pk, pk_len);
 
-        if ((b64ikm = (unsigned char *)malloc(ikm_len*3)) == NULL) {
+        if ((b64ikm = (unsigned char *)malloc(ikm_len*2)) == NULL) {
             fprintf(stderr, "%s: unable to allocate room to encode ephemeral public key!\n", argv[0]);
             exit(1);
         }
-        memset(b64ikm, 0, (ikm_len*3));
+        memset(b64ikm, 0, (ikm_len*2));
         b64ikm_len = EVP_EncodeBlock(b64ikm, ikm, ikm_len);
         /*
          * do some pseudo-PEM nonsense to pretty-print this goo
@@ -140,8 +140,6 @@ main (int argc, char **argv)
                "------ BEGIN PK  --------\n%s\n"
                "-------- END PK  --------\n", b64ikm, b64pk);
 
-        print_buffer("ikm:", ikm, ikm_len);
-        print_buffer("pk:", pk, pk_len);
         free(b64ikm);
         free(b64pk);
     } else {

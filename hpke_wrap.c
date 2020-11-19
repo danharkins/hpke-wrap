@@ -78,7 +78,7 @@ s2os (char *str, unsigned char **os, int *oslen)
 int
 main (int argc, char **argv)
 {
-    int c, b64 = 0;
+    int c, b64 = 0, pad = 0;
     hpke_ctx *ctx = NULL;
     unsigned char *aad = NULL, *info = NULL, *pt = NULL, *ct = NULL, *pkR = NULL, *k = NULL, *enc;
     int aad_len = 0, info_len = 0, t_len = 0, pkR_len = 0, strength = 0, debug = 0, enc_len;
@@ -135,14 +135,17 @@ main (int argc, char **argv)
     }
 
     if (b64) {
-        if ((pkR = (unsigned char *)malloc(strlen(k)*2)) == NULL) {
+        if ((pkR = (unsigned char *)malloc(strlen(k))) == NULL) {
             fprintf(stderr, "%s: unable to allocate space for recipient's public key!\n", argv[0]);
             exit(1);
         }
-        memset(pkR, 0, (strlen(k)*2));
+        memset(pkR, 0, strlen(k));
         pkR_len = EVP_DecodeBlock(pkR, k, strlen(k));
-        pkR_len--;
-        print_buffer("pk", pkR, pkR_len);
+        pad = strlen(k);
+        while (k[pad - 1] == '=') {
+            pkR_len--;
+            pad--;
+        }
     } else {
         s2os(k, &pkR, &pkR_len);
     }
@@ -183,18 +186,18 @@ main (int argc, char **argv)
     wrap(ctx, aad, aad_len, pt, t_len, ct+16, ct);
 
     if (b64) {
-        if ((b64enc = (unsigned char *)malloc(enc_len)) == NULL) {
+        if ((b64enc = (unsigned char *)malloc(enc_len*2)) == NULL) {
             fprintf(stderr, "%s: unable to allocate room to encode ephemeral public key!\n", argv[0]);
             exit(1);
         }
-        memset(b64enc, 0, enc_len);
+        memset(b64enc, 0, (enc_len*2));
         b64enc_len = EVP_EncodeBlock(b64enc, enc, enc_len);
 
-        if ((b64ct = (unsigned char *)malloc(t_len+16)) == NULL) {
+        if ((b64ct = (unsigned char *)malloc((t_len+16)*2)) == NULL) {
             fprintf(stderr, "%s: unable to allocate room to encode ephemeral public key!\n", argv[0]);
             exit(1);
         }
-        memset(b64ct, 0, t_len+16);
+        memset(b64ct, 0, (t_len+16)*2);
         b64ct_len = EVP_EncodeBlock(b64ct, ct, t_len + 16);
         /*
          * do some pseudo-PEM nonsense to pretty-print this goo
@@ -211,9 +214,9 @@ main (int argc, char **argv)
         print_buffer("ct:", ct, t_len + 16);
     }
     free_hpke_context(ctx);
-    free(pkR);
     free(ct);
     free(enc);
+    free(pkR);
 
     exit(0);
 }

@@ -632,6 +632,7 @@ generate_static_keypair (int kem, unsigned char **ikm, int *ikm_len, unsigned ch
     derive_ephem_keypair(ctx, *ikm, ctx->Ndh);
     pklen = serialize_pubkey(ctx, ctx->pkmeE, pk);
     *ikm_len = ctx->Ndh;
+
     free_hpke_context(ctx);
     return pklen;
 }
