@@ -393,6 +393,8 @@ create_hpke_context (unsigned char mode, uint16_t kem, uint16_t kdf_id, uint16_t
     }
     ctx->debug = 0;
     ctx->mode = mode;
+
+    return ctx;
 }
 
 void

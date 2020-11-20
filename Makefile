@@ -4,7 +4,8 @@ CC=	gcc
 CFLAGS =	-g 
 # platform specific cruft
 CFLAGS	+= -I../openssl-1.1.1g/include
-LDFLAGS=	-L../openssl-1.1.1g -lcrypto -ldl -lpthread
+#LDFLAGS=	-L../openssl-1.1.1g -lcrypto -ldl -lpthread
+LDFLAGS=	-L../openssl-1.1.1g -lcrypto 
 
 all: hpke_test hpke_wrap hpke_unwrap hpke_genkey
 
