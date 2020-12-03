@@ -347,6 +347,10 @@ create_hpke_context (unsigned char mode, uint16_t kem, uint16_t kdf_id, uint16_t
             ctx->Nn = 12;
             ctx->Nk = 64;
             break;
+        case ChaCha20Poly:
+            ctx->Nn = 12;
+            ctx->Nk = 32;
+            break;
         default:
             fprintf(stderr, "unknown AEAD: %d\n", aead_id);
             return NULL;
@@ -957,39 +961,6 @@ receiver (hpke_ctx *ctx, unsigned char *pkEPeerbytes, int pkEPeerlen,
 }
 
 /*
- * AES-GCM-128 encrypt-- get a context, aad, plaintext to produce a ciphertext and tag
- */
-static void
-gcm128_wrap (hpke_ctx *ctx, unsigned char *aad, int aad_len, unsigned char *pt, int pt_len,
-             unsigned char *ct, unsigned char *tag)
-{
-    unsigned char sequence[12], num[4];
-    GCM128_CONTEXT gcmc;
-    AES_KEY key;
-
-    PUTU32(num, ctx->seq);
-    memcpy(sequence, ctx->base_nonce, ctx->Nn);
-    sequence[11] ^= num[3];
-    sequence[10] ^= num[2];
-    sequence[9]  ^= num[1];
-    sequence[8]  ^= num[0];
-
-    printf("wrap\nseq = %d\n", ctx->seq);
-    print_buffer("nonce", ctx->base_nonce, ctx->Nn);
-    print_buffer("num", num, 4);
-    print_buffer("sequence", sequence, ctx->Nn);
-    print_buffer("aad", aad, aad_len);
-    ctx->seq++;
-    AES_set_encrypt_key(ctx->key, ctx->Nk * 8, &key);
-    CRYPTO_gcm128_init(&gcmc, &key, (block128_f)AES_encrypt);
-    CRYPTO_gcm128_setiv(&gcmc, sequence, ctx->Nn);
-    CRYPTO_gcm128_aad(&gcmc, aad, aad_len);
-    CRYPTO_gcm128_encrypt(&gcmc, pt, ct, pt_len);
-    CRYPTO_gcm128_tag(&gcmc, tag, 16);
-    return;
-}
-
-/*
  * AES-SIV-(256/512) encrypt-- get a context, aad, plaintext and a type (256 or 512) to produce
  * a ciphertext and tag
  */
@@ -1012,6 +983,64 @@ siv_wrap (hpke_ctx *ctx, int ver, unsigned char *aad, int aad_len, unsigned char
     return;
 }
 
+static int
+evp_wrap (hpke_ctx *ctx, const EVP_CIPHER *whichone, unsigned char *aad, int aad_len,
+          unsigned char *pt, int pt_len, unsigned char *ct, unsigned char *tag)
+{
+    EVP_CIPHER_CTX *cctx = NULL;
+    int ret = -1, len = 0;
+    unsigned char sequence[12], num[4];
+
+    PUTU32(num, ctx->seq);
+    memcpy(sequence, ctx->base_nonce, ctx->Nn);
+    sequence[11] ^= num[3];
+    sequence[10] ^= num[2];
+    sequence[9]  ^= num[1];
+    sequence[8]  ^= num[0];
+
+    if (ctx->debug) {
+        printf("wrap\nseq = %d\n", ctx->seq);
+        print_buffer("nonce", ctx->base_nonce, ctx->Nn);
+        print_buffer("num", num, 4);
+        print_buffer("sequence", sequence, ctx->Nn);
+        print_buffer("aad", aad, aad_len);
+    }
+    ctx->seq++;
+
+    if ((cctx = EVP_CIPHER_CTX_new()) == NULL) {
+        goto fin;
+    }
+    if (!EVP_EncryptInit_ex(cctx, whichone, NULL, ctx->key, sequence)) {
+        fprintf(stderr, "can't initialize EVP encryption!\n");
+        goto fin;
+    }
+    if (!EVP_EncryptUpdate(cctx, NULL, &len, aad, aad_len)) {
+        fprintf(stderr, "can't add aad to encryption context\n");
+        goto fin;
+    }
+    if (!EVP_EncryptUpdate(cctx, ct, &len, pt, pt_len)) {
+        fprintf(stderr, "can't update plaintext into encryption context!\n");
+        goto fin;
+    }
+    ret = len;
+    if (!EVP_EncryptFinal(cctx, ct + len, &len)) {
+        fprintf(stderr, "can't finalize encryption context!\n");
+        ret = -1;
+        goto fin;
+    }
+    ret += len;
+    if (!EVP_CIPHER_CTX_ctrl(cctx, EVP_CTRL_AEAD_GET_TAG, 16, tag)) {
+        fprintf(stderr, "can't get tag from encryption context!\n");
+        ret = -1;
+        goto fin;
+    }
+fin:        
+    if (cctx != NULL) {
+        EVP_CIPHER_CTX_free(cctx);
+    }
+    return ret;
+}
+
 /*
  * generic wrapper to encryption: get context, aad, plaintext to produce a ciphertext and tag
  */
@@ -1021,7 +1050,14 @@ wrap (hpke_ctx *ctx, unsigned char *aad, int aad_len, unsigned char *pt, int pt_
 {
     switch (ctx->aead_id) {
         case AES_128_GCM:
-            gcm128_wrap(ctx, aad, aad_len, pt, pt_len, ct, tag);
+            if (evp_wrap(ctx, EVP_aes_128_gcm(), aad, aad_len, pt, pt_len, ct, tag) < 0) {
+                return 0;
+            }
+            break;
+        case AES_256_GCM:
+            if (evp_wrap(ctx, EVP_aes_256_gcm(), aad, aad_len, pt, pt_len, ct, tag) < 0) {
+                return 0;
+            }
             break;
         case AES_256_SIV:
             siv_wrap(ctx, SIV_256, aad, aad_len, pt, pt_len, ct, tag);
@@ -1029,39 +1065,13 @@ wrap (hpke_ctx *ctx, unsigned char *aad, int aad_len, unsigned char *pt, int pt_
         case AES_512_SIV:
             siv_wrap(ctx, SIV_512, aad, aad_len, pt, pt_len, ct, tag);
             break;
+        case ChaCha20Poly:
+            if (evp_wrap(ctx, EVP_chacha20_poly1305(), aad, aad_len, pt, pt_len, ct, tag) < 0) {
+                return 0;
+            }
+            break;
     }
     return pt_len;
-}
-
-/*
- * AES-GCM-128 decrypt-- given ciphertext, tag, and aad, produce plaintext
- */
-static int
-gcm128_unwrap (hpke_ctx *ctx, unsigned char *aad, int aad_len, unsigned char *ct, int ct_len,
-             unsigned char *pt, unsigned char *tag)
-{
-    unsigned char sequence[12], t[AES_BLOCK_SIZE], num[4];
-    GCM128_CONTEXT gcmc;
-    AES_KEY key;
-
-    PUTU32(num, ctx->seq);
-    memcpy(sequence, ctx->base_nonce, ctx->Nn);
-    sequence[11] ^= num[3];
-    sequence[10] ^= num[2];
-    sequence[9]  ^= num[1];
-    sequence[8]  ^= num[0];
-
-    printf("upwrap\nseq = %d\n", ctx->seq);
-    print_buffer("nonce", ctx->base_nonce, ctx->Nn);
-    print_buffer("sequence", sequence, ctx->Nn);
-    ctx->seq++;
-    AES_set_encrypt_key(ctx->key, ctx->Nk * 8, &key);
-    CRYPTO_gcm128_init(&gcmc, &key, (block128_f)AES_encrypt);
-    CRYPTO_gcm128_setiv(&gcmc, sequence, ctx->Nn);
-    CRYPTO_gcm128_aad(&gcmc, aad, aad_len);
-    CRYPTO_gcm128_decrypt(&gcmc, ct, pt, ct_len);
-    CRYPTO_gcm128_tag(&gcmc, t, AES_BLOCK_SIZE);
-    return memcmp(tag, t, AES_BLOCK_SIZE);
 }
 
 /*
@@ -1077,6 +1087,64 @@ siv_unwrap (hpke_ctx *ctx, int ver, unsigned char *aad, int aad_len, unsigned ch
     return siv_decrypt(&sivc, ct, pt, ct_len, tag, 2, ctx->base_nonce, ctx->Nn, aad, aad_len);
 }
 
+static int
+evp_unwrap (hpke_ctx *ctx, const EVP_CIPHER *whichone, unsigned char *aad, int aad_len,
+            unsigned char *ct, int ct_len, unsigned char *pt, unsigned char *tag)
+{
+    EVP_CIPHER_CTX *cctx = NULL;
+    int ret = -1, len = 0;
+    unsigned char sequence[12], num[4];
+
+    PUTU32(num, ctx->seq);
+    memcpy(sequence, ctx->base_nonce, ctx->Nn);
+    sequence[11] ^= num[3];
+    sequence[10] ^= num[2];
+    sequence[9]  ^= num[1];
+    sequence[8]  ^= num[0];
+
+    if (ctx->debug) {
+        printf("wrap\nseq = %d\n", ctx->seq);
+        print_buffer("nonce", ctx->base_nonce, ctx->Nn);
+        print_buffer("num", num, 4);
+        print_buffer("sequence", sequence, ctx->Nn);
+        print_buffer("aad", aad, aad_len);
+    }
+    ctx->seq++;
+
+    if ((cctx = EVP_CIPHER_CTX_new()) == NULL) {
+        goto fin;
+    }
+    if (!EVP_DecryptInit_ex(cctx, whichone, NULL, ctx->key, sequence)) {
+        fprintf(stderr, "can't initialize EVP encryption!\n");
+        goto fin;
+    }
+    if (!EVP_DecryptUpdate(cctx, NULL, &len, aad, aad_len)) {
+        fprintf(stderr, "can't add aad to encryption context\n");
+        goto fin;
+    }
+    if (!EVP_DecryptUpdate(cctx, pt, &len, ct, ct_len)) {
+        fprintf(stderr, "can't update plaintext into encryption context!\n");
+        goto fin;
+    }
+    ret = len;
+    if (!EVP_CIPHER_CTX_ctrl(cctx, EVP_CTRL_AEAD_SET_TAG, 16, tag)) {
+        fprintf(stderr, "can't get tag from encryption context!\n");
+        ret = -1;
+        goto fin;
+    }
+    if (!EVP_EncryptFinal(cctx, pt + len, &len)) {
+        fprintf(stderr, "can't finalize decryption context!\n");
+        ret = -1;
+        goto fin;
+    }
+    ret += len;
+fin:        
+    if (cctx != NULL) {
+        EVP_CIPHER_CTX_free(cctx);
+    }
+    return ret;
+}
+
 /*
  * generic wrapper for decryption
  */
@@ -1088,13 +1156,19 @@ unwrap (hpke_ctx *ctx, unsigned char *aad, int aad_len, unsigned char *ct, int c
     
     switch (ctx->aead_id) {
         case AES_128_GCM:
-            ret = gcm128_unwrap(ctx, aad, aad_len, ct, ct_len, pt, tag);
+            ret = evp_unwrap(ctx, EVP_aes_128_gcm(), aad, aad_len, ct, ct_len, pt, tag);
+            break;
+        case AES_256_GCM:
+            ret = evp_unwrap(ctx, EVP_aes_256_gcm(), aad, aad_len, ct, ct_len, pt, tag);
             break;
         case AES_256_SIV:
             ret = siv_unwrap(ctx, SIV_256, aad, aad_len, ct, ct_len, pt, tag);
             break;
         case AES_512_SIV:
             ret = siv_unwrap(ctx, SIV_512, aad, aad_len, ct, ct_len, pt, tag);
+            break;
+        case ChaCha20Poly:
+            ret = evp_unwrap(ctx, EVP_chacha20_poly1305(), aad, aad_len, ct, ct_len, pt, tag);
             break;
     }
     if (ret < 0) {
