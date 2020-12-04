@@ -357,6 +357,7 @@ create_hpke_context (unsigned char mode, uint16_t kem, uint16_t kdf_id, uint16_t
     }
     ctx->aead_id = aead_id;
     ctx->seq = 0;
+    ctx->setup = 0;
     
     ctx->psk = NULL; ctx->psk_len = 0;
     ctx->psk_id = NULL; ctx->psk_id_len = 0;
@@ -909,6 +910,7 @@ key_schedule (hpke_ctx *ctx, unsigned char *shared, int shared_len, unsigned cha
         print_buffer("nonce", ctx->base_nonce, ctx->Nn);
         print_buffer("exp", ctx->exporter, ctx->kdf_Nh);
     }
+    ctx->setup = 1;
 
     free(key_sched_context);
     return 1;
@@ -936,6 +938,8 @@ sender (hpke_ctx *ctx, unsigned char *pkSPeerbytes, int pkSPeerlen,
         fprintf(stderr, "sender can't do key schedule!\n");
         return -1;
     }
+
+    return 1;
 }
 
 /*
@@ -958,6 +962,26 @@ receiver (hpke_ctx *ctx, unsigned char *pkEPeerbytes, int pkEPeerlen,
         fprintf(stderr, "receiver can't do key schedule!\n");
         return -1;
     }
+
+    return 1;
+}
+
+/*
+ * obtain the exporter from the context. Caller is responsible for freeing when done.
+ * Returns size of allocated string.
+ */
+int
+get_exporter (hpke_ctx *ctx, unsigned char **exporter)
+{
+    if (!ctx->setup) {
+        return 0;
+    }
+    if ((*exporter = (unsigned char *)malloc(ctx->kdf_Nh)) == NULL) {
+        return 0;
+    }
+    memcpy(*exporter, ctx->exporter, ctx->kdf_Nh);
+
+    return ctx->kdf_Nh;
 }
 
 /*

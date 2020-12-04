@@ -51,6 +51,7 @@
 typedef struct _hpke_ctx {
     unsigned char mode;
     int debug;
+    int setup;
     BN_CTX *bnctx;
     uint16_t kem;
     uint16_t kdf_id;
