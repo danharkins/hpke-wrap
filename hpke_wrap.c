@@ -81,12 +81,12 @@ main (int argc, char **argv)
     int c, b64 = 0, pad = 0;
     hpke_ctx *ctx = NULL;
     unsigned char *aad = NULL, *info = NULL, *pt = NULL, *ct = NULL, *pkR = NULL, *k = NULL, *enc;
-    int aad_len = 0, info_len = 0, t_len = 0, pkR_len = 0, strength = 0, debug = 0, enc_len;
+    int aad_len = 0, info_len = 0, t_len = 0, pkR_len = 0, debug = 0, enc_len;
     unsigned char *b64enc, *b64ct;
     int b64enc_len, b64ct_len;
 
     for (;;) {
-        c = getopt(argc, argv, "a:i:p:c:k:s:d:bh");
+        c = getopt(argc, argv, "a:i:p:c:k:d:bh");
         if (c < 0) {
             break;
         }
@@ -104,9 +104,6 @@ main (int argc, char **argv)
             case'k':
                 k = optarg;
                 break;
-            case 's':
-                strength = atoi(optarg);
-                break;
             case 'd':
                 debug = atoi(optarg);
                 break;
@@ -119,7 +116,6 @@ main (int argc, char **argv)
                         "\t-a  some AAD to include in the wrapping\n"
                         "\t-i  some info to include in the wrapping\n"
                         "\t-k  the recipient's public key in SECG uncompressed form\n"
-                        "\t-s  a numeric indicator of 'strength' of the wrapping (e.g. 256, 384, or 512)\n"
                         "\t-p  the plaintext to wrap\n"
                         "\t-b  base64 encode the output (and base64 decode what's in -k)\n"
                         "\t-h  this help message\n",
@@ -128,8 +124,8 @@ main (int argc, char **argv)
         }
     }
 
-    if ((pt == NULL) || (k == NULL) || (strength == 0)) {
-        fprintf(stderr, "%s: at a minimum you need to specify plaintext, a recipient public key, and strength\n",
+    if ((pt == NULL) || (k == NULL)) {
+        fprintf(stderr, "%s: at a minimum you need to specify plaintext, and a recipient public key\n",
                 argv[0]);
         exit(1);
     }
@@ -149,15 +145,19 @@ main (int argc, char **argv)
     } else {
         s2os(k, &pkR, &pkR_len);
     }
-    
-    if (strength < 257) {
+    /*
+     * the recipient public key dictates our ephemeral key and therefore the KEM.
+     * For simplicity, don't allow for a different KDF to be used, just use the
+     * hash algorithm from the KEM.
+     */
+    if (pkR_len < 66) {
         if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P256,
                                        HKDF_SHA_256, AES_256_SIV,
                                        NULL, 0, NULL, 0)) == NULL) {
             fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
             exit(1);
         }
-    } else if (strength < 385) {
+    } else if (pkR_len < 98) {
         if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P384,
                                        HKDF_SHA_384, AES_512_SIV,
                                        NULL, 0, NULL, 0)) == NULL) {

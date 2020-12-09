@@ -95,10 +95,10 @@ main (int argc, char **argv)
     hpke_ctx *ctx = NULL;
     unsigned char *a = NULL, *i = NULL, *c = NULL, *k = NULL, *r = NULL, *ikmR = NULL;
     unsigned char *aad = NULL, *info = NULL, *pt = NULL, *ct = NULL, *pkS = NULL;
-    int aad_len = 0, info_len = 0, t_len = 0, pkS_len = 0, ikmR_len = 0, strength = 0, debug = 0;
+    int aad_len = 0, info_len = 0, t_len = 0, pkS_len = 0, ikmR_len = 0, debug = 0;
 
     for (;;) {
-        x = getopt(argc, argv, "a:i:p:c:k:r:s:d:bh");
+        x = getopt(argc, argv, "a:i:p:c:k:r:d:bh");
         if (x < 0) {
             break;
         }
@@ -118,9 +118,6 @@ main (int argc, char **argv)
             case'k':
                 k = optarg;
                 break;
-            case 's':
-                strength = atoi(optarg);
-                break;
             case 'd':
                 debug = atoi(optarg);
                 break;
@@ -134,7 +131,6 @@ main (int argc, char **argv)
                         "\t-i  some info to include in the unwrapping\n"
                         "\t-k  the sender's public key in SECG uncompressed form\n"
                         "\t-r  keying material to derive receiver's keypair\n"
-                        "\t-s  a numeric indicator of 'strength' of the wrapping (e.g. 256, 384, or 512)\n"
                         "\t-c  the ciphertext to unwrap\n"
                         "\t-b  base64 decode the input prior to processing\n"
                         "\t-h  this help message\n",
@@ -145,7 +141,7 @@ main (int argc, char **argv)
     /*
      * sanity check...
      */
-    if ((c == NULL) || (k == NULL) || (r == NULL) || (strength == 0)) {
+    if ((c == NULL) || (k == NULL) || (r == NULL)) {
         fprintf(stderr, "%s: at a minimum you need to specify ciphertext, "
                 "a recipient public key, a key to derive your private key, and strength\n",
                 argv[0]);
@@ -223,14 +219,14 @@ main (int argc, char **argv)
         s2os(c, &ct, &t_len);
     }
 
-    if (strength < 257) {
+    if (pkS_len < 66) {
         if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P256,
                                        HKDF_SHA_256, AES_256_SIV,
                                        NULL, 0, NULL, 0)) == NULL) {
             fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
             exit(1);
         }
-    } else if (strength < 385) {
+    } else if (pkS_len < 98) {
         if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P384,
                                        HKDF_SHA_384, AES_512_SIV,
                                        NULL, 0, NULL, 0)) == NULL) {

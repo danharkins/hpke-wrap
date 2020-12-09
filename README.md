@@ -35,7 +35,7 @@ All the code lives in hpke.c and apps that call these APIs need to include hpke.
   Mode is one of: MODE_BASE, MODE_PSK, MODE_AUTH, MODE_AUTH_PSK
   KEM id is one of: DHKEM_P256, DHKEM_P384, DHKEM_P521
   KDF id is one of: HKDF_SHA_256, HKDF_SHA_384, HKDF_SHA_512
-  AEAD id is one of: AES_128_GCM, AES_256_GCM, AES_256_SIV, AES_512_SIV
+  AEAD id is one of: AES_128_GCM, AES_256_GCM, AES_256_SIV, AES_512_SIV, ChaCha20Poly
   
   hpke_ctx *ctx;
 
@@ -120,9 +120,15 @@ hpke_genkey.c
 
   Generates a keypair for use with wrap and unwrap.
 
+  USAGE: ./hpke_genkey [-bh]
+        -k  kem the key will be for (16=p256, 17=p384, 18=p521)
+        -b  base64 encode the output
+        -h  this help message
+
 hpke_test.c
 
-  Validates some of the test vectors from the -06 version of the draft
+  Validates some of the test vectors from the -06 version of the draft as well
+  as some AES-SIV test vectors that aren't
 
 hpke_wrap.c
 
@@ -132,7 +138,6 @@ hpke_wrap.c
         -a  some AAD to include in the wrapping
         -i  some info to include in the wrapping
         -k  the recipient's public key in SECG uncompressed form
-        -s  a numeric indicator of 'strength' of the wrapping (e.g. 256 or 512)
         -p  the plaintext to wrap
         -b  base64 encode the output
         -h  this help message
@@ -146,7 +151,6 @@ hpke_unwrap.c
         -i  some info to include in the unwrapping
         -k  the sender's public key in SECG uncompressed form
         -r  keying material to derive receiver's keypair
-        -s  a numeric indicator of 'strength' of the wrapping (e.g. 256 or 512)
         -c  the ciphertext to unwrap
         -b  base64 decode the input prior to processing
         -h  this help message
