@@ -340,7 +340,7 @@ main (int argc, char **argv)
     s2os(a31pkEm, &pkEm, &pkEm_len);
 
     if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P256,
-                                   HKDF_SHA_256, AES_128_GCM, NULL, 0, NULL, 0)) == NULL) {
+                                   HKDF_SHA_256, AES_128_GCM)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -351,7 +351,7 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (sender(ctx, pkRm, pkRm_len, info, info_len, &enc, &enc_len) < 1) {
+    if (sender(ctx, pkRm, pkRm_len, info, info_len, NULL, 0, NULL, 0, &enc, &enc_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -369,7 +369,7 @@ main (int argc, char **argv)
     free_hpke_context(ctx);
 
     if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P256,
-                                   HKDF_SHA_256, AES_128_GCM, NULL, 0, NULL, 0)) == NULL) {
+                                   HKDF_SHA_256, AES_128_GCM)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -380,7 +380,7 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (receiver(ctx, pkEm, pkEm_len, info, info_len) < 1) {
+    if (receiver(ctx, pkEm, pkEm_len, info, info_len, NULL, 0, NULL, 0) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -414,8 +414,7 @@ main (int argc, char **argv)
     s2os(a32exp, &exp, &exp_len);
     
     if ((ctx = create_hpke_context(MODE_PSK, DHKEM_P256,
-                                   HKDF_SHA_256, AES_128_GCM, 
-                                   psk, psk_len, psk_id, psk_id_len)) == NULL) {
+                                   HKDF_SHA_256, AES_128_GCM)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -426,7 +425,8 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (sender(ctx, pkRm, pkRm_len, info, info_len, &enc, &enc_len) < 1) {
+    if (sender(ctx, pkRm, pkRm_len, info, info_len,
+               psk, psk_len, psk_id, psk_id_len, &enc, &enc_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -457,7 +457,7 @@ main (int argc, char **argv)
     s2os(a33exp, &exp, &exp_len);
 
     if ((ctx = create_hpke_context(MODE_AUTH, DHKEM_P256,
-                                   HKDF_SHA_256, AES_128_GCM, NULL, 0, NULL, 0)) == NULL) {
+                                   HKDF_SHA_256, AES_128_GCM)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -472,7 +472,7 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (sender(ctx, pkRm, pkRm_len, info, info_len, &enc, &enc_len) < 1) {
+    if (sender(ctx, pkRm, pkRm_len, info, info_len, NULL, 0, NULL, 0, &enc, &enc_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -507,8 +507,7 @@ main (int argc, char **argv)
     s2os(a34pkEm, &pkEm, &pkEm_len);
 
     if ((ctx = create_hpke_context(MODE_AUTH_PSK, DHKEM_P256,
-                                   HKDF_SHA_256, AES_128_GCM,
-                                   psk, psk_len, psk_id, psk_id_len)) == NULL) {
+                                   HKDF_SHA_256, AES_128_GCM)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -523,7 +522,8 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (sender(ctx, pkRm, pkRm_len, info, info_len, &enc, &enc_len) < 1) {
+    if (sender(ctx, pkRm, pkRm_len, info, info_len,
+               psk, psk_len, psk_id, psk_id_len, &enc, &enc_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -541,8 +541,7 @@ main (int argc, char **argv)
     free_hpke_context(ctx);
 
     if ((ctx = create_hpke_context(MODE_AUTH_PSK, DHKEM_P256,
-                                   HKDF_SHA_256, AES_128_GCM,
-                                   psk, psk_len, psk_id, psk_id_len)) == NULL) {
+                                   HKDF_SHA_256, AES_128_GCM)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -557,7 +556,8 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (receiver(ctx, pkEm, pkEm_len, info, info_len) < 1) {
+    if (receiver(ctx, pkEm, pkEm_len, info, info_len,
+                 psk, psk_len, psk_id, psk_id_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -589,7 +589,7 @@ main (int argc, char **argv)
     s2os(a41pkEm, &pkEm, &pkEm_len);
 
     if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P256,
-                                   HKDF_SHA_512, AES_128_GCM, NULL, 0, NULL, 0)) == NULL) {
+                                   HKDF_SHA_512, AES_128_GCM)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -600,7 +600,7 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (sender(ctx, pkRm, pkRm_len, info, info_len, &enc, &enc_len) < 1) {
+    if (sender(ctx, pkRm, pkRm_len, info, info_len, NULL, 0, NULL, 0, &enc, &enc_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -618,7 +618,7 @@ main (int argc, char **argv)
     free_hpke_context(ctx);
 
     if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P256,
-                                   HKDF_SHA_512, AES_128_GCM, NULL, 0, NULL, 0)) == NULL) {
+                                   HKDF_SHA_512, AES_128_GCM)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -630,7 +630,7 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (receiver(ctx, pkEm, pkEm_len, info, info_len) < 1) {
+    if (receiver(ctx, pkEm, pkEm_len, info, info_len, NULL, 0, NULL, 0) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -658,8 +658,7 @@ main (int argc, char **argv)
     s2os(a42exp, &exp, &exp_len);
     
     if ((ctx = create_hpke_context(MODE_PSK, DHKEM_P256,
-                                   HKDF_SHA_512, AES_128_GCM, 
-                                   psk, psk_len, psk_id, psk_id_len)) == NULL) {
+                                   HKDF_SHA_512, AES_128_GCM)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -671,7 +670,8 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (sender(ctx, pkRm, pkRm_len, info, info_len, &enc, &enc_len) < 1) {
+    if (sender(ctx, pkRm, pkRm_len, info, info_len,
+               psk, psk_len, psk_id, psk_id_len, &enc, &enc_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -702,7 +702,7 @@ main (int argc, char **argv)
     s2os(a43exp, &exp, &exp_len);
 
     if ((ctx = create_hpke_context(MODE_AUTH, DHKEM_P256,
-                                   HKDF_SHA_512, AES_128_GCM, NULL, 0, NULL, 0)) == NULL) {
+                                   HKDF_SHA_512, AES_128_GCM)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -718,7 +718,7 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (sender(ctx, pkRm, pkRm_len, info, info_len, &enc, &enc_len) < 1) {
+    if (sender(ctx, pkRm, pkRm_len, info, info_len, NULL, 0, NULL, 0, &enc, &enc_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -754,8 +754,7 @@ main (int argc, char **argv)
     s2os(a44exp, &exp, &exp_len);
     
     if ((ctx = create_hpke_context(MODE_AUTH_PSK, DHKEM_P256,
-                                   HKDF_SHA_512, AES_128_GCM,
-                                   psk, psk_len, psk_id, psk_id_len)) == NULL) {
+                                   HKDF_SHA_512, AES_128_GCM)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -770,7 +769,8 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (sender(ctx, pkRm, pkRm_len, info, info_len, &enc, &enc_len) < 1) {
+    if (sender(ctx, pkRm, pkRm_len, info, info_len,
+               psk, psk_len, psk_id, psk_id_len, &enc, &enc_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -787,8 +787,7 @@ main (int argc, char **argv)
     free_hpke_context(ctx);
 
     if ((ctx = create_hpke_context(MODE_AUTH_PSK, DHKEM_P256,
-                                   HKDF_SHA_512, AES_128_GCM,
-                                   psk, psk_len, psk_id, psk_id_len)) == NULL) {
+                                   HKDF_SHA_512, AES_128_GCM)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -803,7 +802,7 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (receiver(ctx, pkEm, pkEm_len, info, info_len) < 1) {
+    if (receiver(ctx, pkEm, pkEm_len, info, info_len, psk, psk_len, psk_id, psk_id_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -837,7 +836,7 @@ main (int argc, char **argv)
     s2os(a51pkEm, &pkEm, &pkEm_len);
 
     if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P256,
-                                   HKDF_SHA_256, ChaCha20Poly, NULL, 0, NULL, 0)) == NULL) {
+                                   HKDF_SHA_256, ChaCha20Poly)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -848,7 +847,7 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (sender(ctx, pkRm, pkRm_len, info, info_len, &enc, &enc_len) < 1) {
+    if (sender(ctx, pkRm, pkRm_len, info, info_len, NULL, 0, NULL, 0, &enc, &enc_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -880,8 +879,7 @@ main (int argc, char **argv)
     s2os(a52exp, &exp, &exp_len);
     
     if ((ctx = create_hpke_context(MODE_PSK, DHKEM_P256,
-                                   HKDF_SHA_256, ChaCha20Poly, 
-                                   psk, psk_len, psk_id, psk_id_len)) == NULL) {
+                                   HKDF_SHA_256, ChaCha20Poly)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -892,7 +890,8 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (sender(ctx, pkRm, pkRm_len, info, info_len, &enc, &enc_len) < 1) {
+    if (sender(ctx, pkRm, pkRm_len, info, info_len,
+               psk, psk_len, psk_id, psk_id_len, &enc, &enc_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -923,7 +922,7 @@ main (int argc, char **argv)
     s2os(a53exp, &exp, &exp_len);
 
     if ((ctx = create_hpke_context(MODE_AUTH, DHKEM_P256,
-                                   HKDF_SHA_256, ChaCha20Poly, NULL, 0, NULL, 0)) == NULL) {
+                                   HKDF_SHA_256, ChaCha20Poly)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -938,7 +937,7 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (sender(ctx, pkRm, pkRm_len, info, info_len, &enc, &enc_len) < 1) {
+    if (sender(ctx, pkRm, pkRm_len, info, info_len, NULL, 0, NULL, 0, &enc, &enc_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -973,8 +972,7 @@ main (int argc, char **argv)
     s2os(a54pkEm, &pkEm, &pkEm_len);
 
     if ((ctx = create_hpke_context(MODE_AUTH_PSK, DHKEM_P256,
-                                   HKDF_SHA_256, ChaCha20Poly,
-                                   psk, psk_len, psk_id, psk_id_len)) == NULL) {
+                                   HKDF_SHA_256, ChaCha20Poly)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -989,7 +987,8 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (sender(ctx, pkRm, pkRm_len, info, info_len, &enc, &enc_len) < 1) {
+    if (sender(ctx, pkRm, pkRm_len, info, info_len,
+               psk, psk_len, psk_id, psk_id_len, &enc, &enc_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -1007,8 +1006,7 @@ main (int argc, char **argv)
     free_hpke_context(ctx);
 
     if ((ctx = create_hpke_context(MODE_AUTH_PSK, DHKEM_P256,
-                                   HKDF_SHA_256, ChaCha20Poly,
-                                   psk, psk_len, psk_id, psk_id_len)) == NULL) {
+                                   HKDF_SHA_256, ChaCha20Poly)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -1023,7 +1021,7 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (receiver(ctx, pkEm, pkEm_len, info, info_len) < 1) {
+    if (receiver(ctx, pkEm, pkEm_len, info, info_len, psk, psk_len, psk_id, psk_id_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -1062,7 +1060,7 @@ main (int argc, char **argv)
     s2os(a61pkEm, &pkEm, &pkEm_len);
 
     if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P521,
-                                   HKDF_SHA_512, AES_256_GCM, NULL, 0, NULL, 0)) == NULL) {
+                                   HKDF_SHA_512, AES_256_GCM)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -1073,7 +1071,7 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (sender(ctx, pkRm, pkRm_len, info, info_len, &enc, &enc_len) < 1) {
+    if (sender(ctx, pkRm, pkRm_len, info, info_len, NULL, 0, NULL, 0, &enc, &enc_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -1090,8 +1088,7 @@ main (int argc, char **argv)
 
     free_hpke_context(ctx);
 
-    if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P521,
-                                   HKDF_SHA_512, AES_256_GCM, NULL, 0, NULL, 0)) == NULL) {
+    if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P521, HKDF_SHA_512, AES_256_GCM)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -1102,7 +1099,7 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (receiver(ctx, pkEm, pkEm_len, info, info_len) < 1) {
+    if (receiver(ctx, pkEm, pkEm_len, info, info_len, NULL, 0, NULL, 0) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -1136,8 +1133,7 @@ main (int argc, char **argv)
     s2os(a62exp, &exp, &exp_len);
     
     if ((ctx = create_hpke_context(MODE_PSK, DHKEM_P521,
-                                   HKDF_SHA_512, AES_256_GCM,
-                                   psk, psk_len, psk_id, psk_id_len)) == NULL) {
+                                   HKDF_SHA_512, AES_256_GCM)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -1148,7 +1144,8 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (sender(ctx, pkRm, pkRm_len, info, info_len, &enc, &enc_len) < 1) {
+    if (sender(ctx, pkRm, pkRm_len, info, info_len,
+               psk, psk_len, psk_id, psk_id_len, &enc, &enc_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -1178,8 +1175,7 @@ main (int argc, char **argv)
     s2os(a63key, &key, &key_len);
     s2os(a63exp, &exp, &exp_len);
 
-    if ((ctx = create_hpke_context(MODE_AUTH, DHKEM_P521,
-                                   HKDF_SHA_512, AES_256_GCM, NULL, 0, NULL, 0)) == NULL) {
+    if ((ctx = create_hpke_context(MODE_AUTH, DHKEM_P521, HKDF_SHA_512, AES_256_GCM)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -1194,7 +1190,7 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (sender(ctx, pkRm, pkRm_len, info, info_len, &enc, &enc_len) < 1) {
+    if (sender(ctx, pkRm, pkRm_len, info, info_len, NULL, 0, NULL, 0, &enc, &enc_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -1229,9 +1225,7 @@ main (int argc, char **argv)
     s2os(a64key, &key, &key_len);
     s2os(a64exp, &exp, &exp_len);
 
-    if ((ctx = create_hpke_context(MODE_AUTH_PSK, DHKEM_P521,
-                                   HKDF_SHA_512, AES_256_GCM,
-                                   psk, psk_len, psk_id, psk_id_len)) == NULL) {
+    if ((ctx = create_hpke_context(MODE_AUTH_PSK, DHKEM_P521, HKDF_SHA_512, AES_256_GCM)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -1246,7 +1240,8 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (sender(ctx, pkRm, pkRm_len, info, info_len, &enc, &enc_len) < 1) {
+    if (sender(ctx, pkRm, pkRm_len, info, info_len,
+               psk, psk_len, psk_id, psk_id_len, &enc, &enc_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -1282,8 +1277,7 @@ main (int argc, char **argv)
     s2os(a71key, &key, &key_len);
     s2os(a71exp, &exp, &exp_len);
 
-    if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P256,
-                                   HKDF_SHA_256, AES_256_SIV, NULL, 0, NULL, 0)) == NULL) {
+    if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P256, HKDF_SHA_256, AES_256_SIV)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -1294,7 +1288,7 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (sender(ctx, pkRm, pkRm_len, info, info_len, &enc, &enc_len) < 1) {
+    if (sender(ctx, pkRm, pkRm_len, info, info_len, NULL, 0, NULL, 0, &enc, &enc_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -1311,8 +1305,7 @@ main (int argc, char **argv)
     
     free_hpke_context(ctx);
 
-    if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P256,
-                                   HKDF_SHA_256, AES_256_SIV, NULL, 0, NULL, 0)) == NULL) {
+    if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P256, HKDF_SHA_256, AES_256_SIV)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -1323,7 +1316,7 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (receiver(ctx, pkEm, pkEm_len, info, info_len) < 1) {
+    if (receiver(ctx, pkEm, pkEm_len, info, info_len, NULL, 0, NULL, 0) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -1355,9 +1348,7 @@ main (int argc, char **argv)
     s2os(a74key, &key, &key_len);
     s2os(a74exp, &exp, &exp_len);
     
-    if ((ctx = create_hpke_context(MODE_AUTH_PSK, DHKEM_P521,
-                                   HKDF_SHA_512, AES_512_SIV,
-                                   psk, psk_len, psk_id, psk_id_len)) == NULL) {
+    if ((ctx = create_hpke_context(MODE_AUTH_PSK, DHKEM_P521, HKDF_SHA_512, AES_512_SIV)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -1372,7 +1363,8 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (sender(ctx, pkRm, pkRm_len, info, info_len, &enc, &enc_len) < 1) {
+    if (sender(ctx, pkRm, pkRm_len, info, info_len,
+               psk, psk_len, psk_id, psk_id_len, &enc, &enc_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }
@@ -1388,9 +1380,7 @@ main (int argc, char **argv)
 
     free_hpke_context(ctx);
 
-    if ((ctx = create_hpke_context(MODE_AUTH_PSK, DHKEM_P521,
-                                   HKDF_SHA_512, AES_512_SIV,
-                                   psk, psk_len, psk_id, psk_id_len)) == NULL) {
+    if ((ctx = create_hpke_context(MODE_AUTH_PSK, DHKEM_P521, HKDF_SHA_512, AES_512_SIV)) == NULL) {
         fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
         exit(1);
     }
@@ -1405,7 +1395,7 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if (receiver(ctx, pkEm, pkEm_len, info, info_len) < 1) {
+    if (receiver(ctx, pkEm, pkEm_len, info, info_len, psk, psk_len, psk_id, psk_id_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }

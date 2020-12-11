@@ -29,8 +29,8 @@ All the code lives in hpke.c and apps that call these APIs need to include hpke.
 
 * HPKE Context
 
-  Create an opaque context for HPKE. Takes the mode, the KEM id, the KDF id, the AEAD id,
-  an optional PSK and PSK ID.
+  Create an opaque context for HPKE. Takes the mode, the KEM id, the KDF id,
+  and the AEAD id.
 
   Mode is one of: MODE_BASE, MODE_PSK, MODE_AUTH, MODE_AUTH_PSK
   KEM id is one of: DHKEM_P256, DHKEM_P384, DHKEM_P521
@@ -77,16 +77,19 @@ All the code lives in hpke.c and apps that call these APIs need to include hpke.
 
 * Generating keying material
 
-  sender(ctx, receiver_pubkey, receiver_keylen, info, infolen, ephem_pubkey, ephem_keylen)
+  sender(ctx, receiver_pubkey, receiver_keylen, info, infolen,
+  	 psk, psk_len, psk_id, psk_id_len, ephem_pubkey, ephem_keylen)
 
     - generate internal keying material to encrypt messages for the receiver
     - info may be empty
+    - psk and psk_id may be empty and if so psk_len and psk_id_len must be 0
     - the ephemeral key is returned
 
-  receiver(ctx, ephem_pubkey, ephem_keylen, info, infolen)
+  receiver(ctx, ephem_pubkey, ephem_keylen, info, infolen, psk, psk_len, psk_id, psk_id_len)
 
     - generate internal keying material to decrypt messages from the sender
     - info may be empty
+    - psk and psk_id may be empty and if so psk_len and psk_id_len must be 0
 
 * Encrypt (wrap) and Decrypt (unwrap)
 

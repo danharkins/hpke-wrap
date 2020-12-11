@@ -152,29 +152,26 @@ main (int argc, char **argv)
      */
     if (pkR_len < 66) {
         if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P256,
-                                       HKDF_SHA_256, AES_256_SIV,
-                                       NULL, 0, NULL, 0)) == NULL) {
+                                       HKDF_SHA_256, AES_256_SIV)) == NULL) {
             fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
             exit(1);
         }
     } else if (pkR_len < 98) {
         if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P384,
-                                       HKDF_SHA_384, AES_512_SIV,
-                                       NULL, 0, NULL, 0)) == NULL) {
+                                       HKDF_SHA_384, AES_512_SIV)) == NULL) {
             fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
             exit(1);
         }
     } else {
         if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P521,
-                                       HKDF_SHA_512, AES_512_SIV,
-                                       NULL, 0, NULL, 0)) == NULL) {
+                                       HKDF_SHA_512, AES_512_SIV)) == NULL) {
             fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
             exit(1);
         }
     }
     set_hpke_debug(ctx, debug);
 
-    if (sender(ctx, pkR, pkR_len, info, info_len, &enc, &enc_len) < 1) {
+    if (sender(ctx, pkR, pkR_len, info, info_len, NULL, 0, NULL, 0, &enc, &enc_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\n", argv[0]);
         exit(1);
     }

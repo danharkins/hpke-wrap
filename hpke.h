@@ -56,15 +56,16 @@
 
 typedef struct _hpke_ctx hpke_ctx;
 
-hpke_ctx *create_hpke_context(unsigned char, uint16_t, uint16_t, uint16_t, char *, int, char *, int);
+hpke_ctx *create_hpke_context(unsigned char, uint16_t, uint16_t, uint16_t);
 void free_hpke_context(hpke_ctx *);
 int assign_peer_static_keypair(hpke_ctx *, unsigned char *, int);
 int generate_static_keypair(int, unsigned char **, int *, unsigned char **);
 int derive_local_static_keypair(hpke_ctx *, unsigned char *, int);
 int derive_ephem_keypair(hpke_ctx *, unsigned char *, int);
 int generate_ephem_keypair(hpke_ctx *);
-int sender(hpke_ctx *, unsigned char *, int, unsigned char *, int, unsigned char **, int *);
-int receiver(hpke_ctx *, unsigned char *, int, unsigned char *, int);
+int sender(hpke_ctx *, unsigned char *, int, unsigned char *, int, char *, int, char *, int, 
+           unsigned char **, int *);
+int receiver(hpke_ctx *, unsigned char *, int, unsigned char *, int, char *, int, char *, int);
 int get_exporter(hpke_ctx *, unsigned char **);
 int wrap(hpke_ctx *, unsigned char *, int, unsigned char *, int, unsigned char *, unsigned char *);
 int unwrap(hpke_ctx *, unsigned char *, int, unsigned char *, int, unsigned char *, unsigned char *);

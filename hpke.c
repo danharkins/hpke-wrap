@@ -258,12 +258,10 @@ free_hpke_context (hpke_ctx *ctx)
 }
 
 /*
- * create an hpke context for a particular kem, kdf, and aead. Optionally pass
- * a psk and psk_id for base derivation
+ * create an hpke context for a particular kem, kdf, and aead. 
  */
 hpke_ctx *
-create_hpke_context (unsigned char mode, uint16_t kem, uint16_t kdf_id, uint16_t aead_id,
-                    char *psk, int psk_len, char *psk_id, int psk_id_len)
+create_hpke_context (unsigned char mode, uint16_t kem, uint16_t kdf_id, uint16_t aead_id)
 {
     hpke_ctx *ctx;
     int nid;
@@ -361,41 +359,6 @@ create_hpke_context (unsigned char mode, uint16_t kem, uint16_t kdf_id, uint16_t
     
     ctx->psk = NULL; ctx->psk_len = 0;
     ctx->psk_id = NULL; ctx->psk_id_len = 0;
-    if (psk != NULL) {
-        if ((mode == MODE_BASE) || (mode == MODE_AUTH)) {
-            fprintf(stderr, "no psk mode indicated, but passed a psk!\n");
-            free(ctx);
-            return NULL;
-        }
-        if (psk_id == NULL) {
-            fprintf(stderr, "psk is not NULL but psk_id is!\n");
-            free(ctx);
-            return NULL;
-        }
-        if ((ctx->psk = malloc(psk_len)) == NULL) {
-            fprintf(stderr, "unable to allocate space for PSK!\n");
-            free(ctx);
-            return NULL;
-        }
-        if ((ctx->psk_id = malloc(psk_id_len)) == NULL) {
-            fprintf(stderr, "unable to allocate space for PSK!\n");
-            free(ctx->psk);
-            free(ctx);
-            return NULL;
-        }
-        ctx->psk_len = psk_len;
-        memcpy(ctx->psk, psk, psk_len);
-        ctx->psk_id_len = psk_id_len;
-        memcpy(ctx->psk_id, psk_id, psk_id_len);
-    } else if (psk_id != NULL) {
-        fprintf(stderr, "psk is NULL but psk_id is not!\n");
-        free(ctx);
-        return NULL;
-    } else if ((mode == MODE_PSK) || (mode == MODE_AUTH_PSK)) {
-        fprintf(stderr, "indicated a PSK mode but no psk!\n");
-        free(ctx);
-        return NULL;
-    }
     ctx->debug = 0;
     ctx->mode = mode;
 
@@ -621,7 +584,7 @@ generate_static_keypair (int kem, unsigned char **ikm, int *ikm_len, unsigned ch
     hpke_ctx *ctx;
     int pklen;
 
-    if ((ctx = create_hpke_context(MODE_BASE, kem, HKDF_SHA_512, AES_512_SIV, NULL, 0, NULL, 0)) == NULL) {
+    if ((ctx = create_hpke_context(MODE_BASE, kem, HKDF_SHA_512, AES_512_SIV)) == NULL) {
         fprintf(stderr, "can't create hpke context to generate static keypair!\n");
         return -1;
     }
@@ -916,6 +879,47 @@ key_schedule (hpke_ctx *ctx, unsigned char *shared, int shared_len, unsigned cha
     return 1;
 }
 
+static int
+add_check_psk (hpke_ctx *ctx, char *psk, int psk_len, char *psk_id, int psk_id_len)
+{
+    if (psk != NULL) {
+        if ((ctx->mode == MODE_BASE) || (ctx->mode == MODE_AUTH)) {
+            fprintf(stderr, "no psk mode indicated, but passed a psk!\n");
+            free(ctx);
+            return -1;
+        }
+        if (psk_id == NULL) {
+            fprintf(stderr, "psk is not NULL but psk_id is!\n");
+            free(ctx);
+            return -1;
+        }
+        if ((ctx->psk = malloc(psk_len)) == NULL) {
+            fprintf(stderr, "unable to allocate space for PSK!\n");
+            free(ctx);
+            return -1;
+        }
+        if ((ctx->psk_id = malloc(psk_id_len)) == NULL) {
+            fprintf(stderr, "unable to allocate space for PSK!\n");
+            free(ctx->psk);
+            free(ctx);
+            return -1;
+        }
+        ctx->psk_len = psk_len;
+        memcpy(ctx->psk, psk, psk_len);
+        ctx->psk_id_len = psk_id_len;
+        memcpy(ctx->psk_id, psk_id, psk_id_len);
+    } else if (psk_id != NULL) {
+        fprintf(stderr, "psk is NULL but psk_id is not!\n");
+        free(ctx);
+        return -1;
+    } else if ((ctx->mode == MODE_PSK) || (ctx->mode == MODE_AUTH_PSK)) {
+        fprintf(stderr, "indicated a PSK mode but no psk!\n");
+        free(ctx);
+        return -1;
+    }
+    return 1;
+}
+
 /*
  * Sender: get the peer's serialized static public key and some optional info,
  * generate a secret key, an exporter, and a base nonce in the context and
@@ -924,11 +928,17 @@ key_schedule (hpke_ctx *ctx, unsigned char *shared, int shared_len, unsigned cha
  */
 int
 sender (hpke_ctx *ctx, unsigned char *pkSPeerbytes, int pkSPeerlen,
-        unsigned char *info, int info_len, unsigned char **enc, int *enc_len)
+        unsigned char *info, int info_len,
+        char *psk, int psk_len, char *psk_id, int psk_id_len,
+        unsigned char **enc, int *enc_len)
 {
     unsigned char shared_secret[HPKE_MAX_HASH_LEN];
     int ss_len;
     
+    if (add_check_psk(ctx, psk, psk_len, psk_id, psk_id_len) < 1) {
+        fprintf(stderr, "bad psk for sender KEM!\n");
+        return -1;
+    }
     if ((ss_len = encap(ctx, pkSPeerbytes, pkSPeerlen, shared_secret, enc, enc_len)) < 1) {
         fprintf(stderr, "sender can't do encap!\n");
         return -1;
@@ -948,11 +958,16 @@ sender (hpke_ctx *ctx, unsigned char *pkSPeerbytes, int pkSPeerlen,
  */
 int
 receiver (hpke_ctx *ctx, unsigned char *pkEPeerbytes, int pkEPeerlen,
-       unsigned char *info, int info_len)
+          unsigned char *info, int info_len, 
+          char *psk, int psk_len, char *psk_id, int psk_id_len)
 {
     unsigned char shared_secret[HPKE_MAX_HASH_LEN];
     int ss_len;
     
+    if (add_check_psk(ctx, psk, psk_len, psk_id, psk_id_len) < 1) {
+        fprintf(stderr, "bad psk for receiver KEM!\n");
+        return -1;
+    }
     if ((ss_len = decap(ctx, pkEPeerbytes, pkEPeerlen, shared_secret)) < 1) {
         fprintf(stderr, "receiver can't do decap!\n");
         return -1;
