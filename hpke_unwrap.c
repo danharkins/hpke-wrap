@@ -93,7 +93,7 @@ main (int argc, char **argv)
 {
     int x, b64 = 0, pad = 0;
     hpke_ctx *ctx = NULL;
-    unsigned char *a = NULL, *i = NULL, *c = NULL, *k = NULL, *r = NULL, *ikmR = NULL;
+    unsigned char *c = NULL, *k = NULL, *r = NULL, *ikmR = NULL;
     unsigned char *aad = NULL, *info = NULL, *pt = NULL, *ct = NULL, *pkS = NULL;
     int aad_len = 0, info_len = 0, t_len = 0, pkS_len = 0, ikmR_len = 0, debug = 0;
 
@@ -104,10 +104,10 @@ main (int argc, char **argv)
         }
         switch (x) {
             case 'a':
-                a = optarg;
+                s2os(optarg, &aad, &aad_len);
                 break;
             case 'i':
-                i = optarg;
+                s2os(optarg, &info, &info_len);
                 break;
             case 'c':
                 c = optarg;
@@ -148,32 +148,6 @@ main (int argc, char **argv)
         exit(1);
     }
     if (b64) {
-        if (a != NULL) {
-            if ((aad = (unsigned char *)malloc(strlen(a))) == NULL) {
-                fprintf(stderr, "%s: cannot allocate space for AAD!\n", argv[0]);
-                exit(1);
-            }
-            memset(aad, 0, strlen(a));
-            aad_len = EVP_DecodeBlock(aad, a, strlen(a));
-            pad = strlen(a);
-            while (a[pad - 1] == '=') {
-                aad_len--;
-                pad--;
-            }
-        }
-        if (i != NULL) {
-            if ((info = (unsigned char *)malloc(strlen(i))) == NULL) {
-                fprintf(stderr, "%s: cannot allocate space for info!\n", argv[0]);
-                exit(1);
-            }
-            memset(info, 0, strlen(i));
-            info_len = EVP_DecodeBlock(info, i, strlen(i));
-            pad = strlen(i);
-            while (i[pad - 1] == '=') {
-                info_len--;
-                pad--;
-            }
-        }
         if ((ikmR = (unsigned char *)malloc(strlen(r))) == NULL) {
             fprintf(stderr, "%s: cannot allocate space for keying material!\n", argv[0]);
             exit(1);
@@ -208,12 +182,6 @@ main (int argc, char **argv)
             pad--;
         }
     } else {
-        if (a != NULL) {
-            s2os(a, &aad, &aad_len);
-        }
-        if (i != NULL) {
-            s2os(i, &info, &info_len);
-        }
         s2os(r, &ikmR, &ikmR_len);
         s2os(k, &pkS, &pkS_len);
         s2os(c, &ct, &t_len);
