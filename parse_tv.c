@@ -49,6 +49,8 @@ static int dump_array(jsmntok_t *t, char *, int);
 static int dump_string(jsmntok_t *t, char *, int);
 static int dump_primitive(jsmntok_t *t, char *, int);
 
+static int dump_level = 0;
+
 static void
 dump_buffer (unsigned char *buf, int len)
 {
@@ -182,6 +184,16 @@ skip_array (jsmntok_t *tok)
     return i+1;
 }
 
+void
+dump_indent (void)
+{
+    int i;
+
+    for (i = 0; i < dump_level; i++) {
+        printf("\t");
+    }
+}
+
 /*
  * dump a single token by its type
  */
@@ -238,6 +250,7 @@ dump_object (jsmntok_t *tok, char *buf, int len)
     int i, j;
     jsmntok_t *t;
 
+    dump_level++;
     i = 0;
     t = tok + 1;
     /*
@@ -245,13 +258,14 @@ dump_object (jsmntok_t *tok, char *buf, int len)
      */
     printf("an object of %d\n", tok->size);
     for (j = 0; j < tok->size; j++) {
-        printf("\t");
+        dump_indent();
         i += dump_single(t, buf, len);
         printf(", ");
         i += dump_single(t+1, buf, len);
         printf("\n");
         t = tok + i + 1;
     }
+    dump_level--;
     return i+1;
 }
 
@@ -264,6 +278,7 @@ dump_array (jsmntok_t *tok, char *buf, int len)
     int i, j;
     jsmntok_t *t;
 
+    dump_level++;
     i = 0;
     t = tok + 1;
     /*
@@ -271,10 +286,12 @@ dump_array (jsmntok_t *tok, char *buf, int len)
      */
     printf("an array of %d\n", tok->size);
     for (j = 0; j < tok->size; j++) {
+        dump_indent();
         i += dump_single(t, buf, len);
         printf("\n");
         t = tok + i + 1;
     }
+    dump_level--;
     return i+1;
 }
 
