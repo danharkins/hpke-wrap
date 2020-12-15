@@ -33,6 +33,9 @@
 
 #ifndef _HPKE_INTERNAL_H_
 #define _HPKE_INTERNAL_H_
+#include <openssl/ec.h>
+#include <openssl/bn.h>
+#include <openssl/aes.h>
 #include "hpke.h"
 
 #define P256_COORD_LEN          32
@@ -80,6 +83,12 @@ typedef struct _hpke_ctx {
     int psk_id_len;
     uint32_t seq;
 } hpke_ctx;
+
+/*
+ * an additional APIs, this is needed for test vectors but we don't want to
+ * export this to an hpke app
+ */
+int get_exporter(hpke_ctx *, unsigned char **);
 
 #endif  /* _HPKE_INTERNAL_H_ */
 

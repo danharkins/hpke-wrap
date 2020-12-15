@@ -66,7 +66,7 @@ int generate_ephem_keypair(hpke_ctx *);
 int sender(hpke_ctx *, unsigned char *, int, unsigned char *, int, char *, int, char *, int, 
            unsigned char **, int *);
 int receiver(hpke_ctx *, unsigned char *, int, unsigned char *, int, char *, int, char *, int);
-int get_exporter(hpke_ctx *, unsigned char **);
+int export_secret(hpke_ctx *, unsigned char *, int, int, unsigned char **);
 int wrap(hpke_ctx *, unsigned char *, int, unsigned char *, int, unsigned char *, unsigned char *);
 int unwrap(hpke_ctx *, unsigned char *, int, unsigned char *, int, unsigned char *, unsigned char *);
 void set_hpke_debug(hpke_ctx *, int);

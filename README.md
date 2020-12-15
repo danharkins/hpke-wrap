@@ -105,6 +105,15 @@ All the code lives in hpke.c and apps that call these APIs need to include hpke.
     - add may be empty
     - called by receivers
 
+* Exporting secrets
+
+  The HPKE context maintains an "exporter" in its key schedule and it can
+  derive secrets from it. To obtain a secret, pass in an "exporter context"
+  and how many octets you want, and get back a value. Caller is responsible
+  for freeing returned_value when done.
+
+  export_secret(ctx, export_context, context_len, export_len, **returned_value)
+
 * Creating a usable keypair
 
   generate_static_keypair(kem, ikm, ikm_len, pk)
@@ -132,6 +141,18 @@ hpke_test.c
 
   Validates some of the test vectors from the -06 version of the draft as well
   as some AES-SIV test vectors that aren't
+
+parse_tv.c 
+
+  Take the JSON verson of the test vectors and go through them all, testing
+  all of the KEMs that use the NIST curves
+
+  USAGE: ./parse_tv -t <tv> [-jvdh]
+        -t  the JSON test vectors
+        -j  dump the test vector contents
+        -d  chatty progress of test vectors
+        -v  verbose HPKE output
+        -h  this help message
 
 hpke_wrap.c
 

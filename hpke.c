@@ -36,14 +36,11 @@
 #include <openssl/crypto.h>
 #include <openssl/aes.h>
 #include <openssl/modes.h>
-#include "modes_local.h"
-#include <openssl/ec.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 #include <openssl/rand.h>
 #include <openssl/sha.h>
-#include <openssl/bn.h>
-#include <openssl/aes.h>
+#include "modes_local.h"
 #include "aes_siv.h"
 #include "hpke_internal.h"
 #include "hkdf.h"
@@ -983,7 +980,7 @@ receiver (hpke_ctx *ctx, unsigned char *pkEPeerbytes, int pkEPeerlen,
 
 /*
  * obtain the exporter from the context. Caller is responsible for freeing when done.
- * Returns size of allocated string.
+ * Returns size of allocated string. This is not an official HPKE API....
  */
 int
 get_exporter (hpke_ctx *ctx, unsigned char **exporter)
@@ -997,6 +994,21 @@ get_exporter (hpke_ctx *ctx, unsigned char **exporter)
     memcpy(*exporter, ctx->exporter, ctx->kdf_Nh);
 
     return ctx->kdf_Nh;
+}
+
+/*
+ * Return an exported secret of a supplied lengthderived from the internal exporter
+ * using a supplied context. Caller is responsible for freeing the expvalue when done.
+ */
+int
+export_secret (hpke_ctx *ctx, unsigned char *expctx, int expctx_len, int explen, unsigned char **expvalue)
+{
+    if ((*expvalue = (unsigned char *)malloc(explen)) == NULL) {
+        return -1;
+    }
+    labeled_expand(ctx, HPKE_LABELED, ctx->exporter, "sec", strlen("sec"),
+                   expctx, expctx_len, *expvalue, explen);
+    return explen;
 }
 
 /*
