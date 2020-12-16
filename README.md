@@ -1,6 +1,6 @@
 # hpke-wrap
 
-Implementation of Hybrid Public Key Encryption (draft-irtf-cfrg-hpke-06)
+Implementation of Hybrid Public Key Encryption (draft-irtf-cfrg-hpke-07)
 
   Note: all modes are supported but only KEMs with NIST curves, also supports AES-SIV
         as an AEAD even though that's not part of the draft.
@@ -35,7 +35,8 @@ All the code lives in hpke.c and apps that call these APIs need to include hpke.
   Mode is one of: MODE_BASE, MODE_PSK, MODE_AUTH, MODE_AUTH_PSK
   KEM id is one of: DHKEM_P256, DHKEM_P384, DHKEM_P521
   KDF id is one of: HKDF_SHA_256, HKDF_SHA_384, HKDF_SHA_512
-  AEAD id is one of: AES_128_GCM, AES_256_GCM, AES_256_SIV, AES_512_SIV, ChaCha20Poly
+  AEAD id is one of: AES_128_GCM, AES_256_GCM, AES_256_SIV, AES_512_SIV, ChaCha20Poly,
+		    EXPORTER-ONLY
   
   hpke_ctx *ctx;
 
@@ -137,6 +138,11 @@ hpke_genkey.c
         -b  base64 encode the output
         -h  this help message
 
+  A public key and input keying material to derive the keypair is output. The
+  public key is provided to someone who wants to send something to you and
+  the input keying material is used to generate the local identity key when
+  you receive something encrypted with your public key.
+
 hpke_test.c
 
   Validates some of the test vectors from the -06 version of the draft as well
@@ -145,7 +151,7 @@ hpke_test.c
 parse_tv.c 
 
   Take the JSON verson of the test vectors and go through them all, testing
-  all of the KEMs that use the NIST curves
+  all of the KEMs that use the NIST curves. Works with the -07 test vectors.
 
   USAGE: ./parse_tv -t <tv> [-jvdh]
         -t  the JSON test vectors
