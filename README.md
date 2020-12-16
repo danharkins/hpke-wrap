@@ -39,7 +39,7 @@ All the code lives in hpke.c and apps that call these APIs need to include hpke.
   
   hpke_ctx *ctx;
 
-  ctx = create_hpke_context(mode, kem_id, kdf_id, aead_id, psk, psk_len, psk_id, psk_id_len);
+  ctx = create_hpke_context(mode, kem_id, kdf_id, aead_id);
 
   Debugging for certain internal state can be turned on and off in a context
 

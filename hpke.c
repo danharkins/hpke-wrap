@@ -346,6 +346,10 @@ create_hpke_context (unsigned char mode, uint16_t kem, uint16_t kdf_id, uint16_t
             ctx->Nn = 12;
             ctx->Nk = 32;
             break;
+        case EXPORTER_ONLY:
+            ctx->Nn = 0;
+            ctx->Nk = 0;
+            break;
         default:
             fprintf(stderr, "unknown AEAD: %d\n", aead_id);
             return NULL;
@@ -387,7 +391,7 @@ labeled_extract (hpke_ctx *ctx, int type,
 
     suite = htons(ctx->kem);
     str = NULL; str_len = 0;
-    str = concat(str, &str_len, "HPKE-06", strlen("HPKE-06"));
+    str = concat(str, &str_len, "HPKE-07", strlen("HPKE-07"));
     if (type == KEM_LABELED) {
         str = concat(str, &str_len, "KEM", 3);
         str = concat(str, &str_len, (unsigned char *)&suite, 2);
@@ -431,7 +435,7 @@ labeled_expand (hpke_ctx *ctx, int type, unsigned char *prk,
 
     str = NULL; str_len = 0;
     str = concat(str, &str_len, (unsigned char *)&L, 2);
-    str = concat(str, &str_len, "HPKE-06", strlen("HPKE-06"));
+    str = concat(str, &str_len, "HPKE-07", strlen("HPKE-07"));
     if (type == KEM_LABELED) {
         str = concat(str, &str_len, "KEM", 3);
         str = concat(str, &str_len, (unsigned char *)&suite, 2);
@@ -858,16 +862,27 @@ key_schedule (hpke_ctx *ctx, unsigned char *shared, int shared_len, unsigned cha
         print_buffer("secret", sec, ctx->kdf_Nh);
     }    
 
-    labeled_expand(ctx, HPKE_LABELED, sec, "key", strlen("key"),
-                   key_sched_context, key_sched_context_len, ctx->key, ctx->Nk);
-    labeled_expand(ctx, HPKE_LABELED, sec, "base_nonce", strlen("base_nonce"),
-                   key_sched_context, key_sched_context_len, ctx->base_nonce, ctx->Nn);
+    /*
+     * the exporter-only "aead" doesn't generate a key or base nonce
+     */
+    if (ctx->Nk) {
+        labeled_expand(ctx, HPKE_LABELED, sec, "key", strlen("key"),
+                       key_sched_context, key_sched_context_len, ctx->key, ctx->Nk);
+    }
+    if (ctx->Nn) {
+        labeled_expand(ctx, HPKE_LABELED, sec, "base_nonce", strlen("base_nonce"),
+                       key_sched_context, key_sched_context_len, ctx->base_nonce, ctx->Nn);
+    }
     labeled_expand(ctx, HPKE_LABELED, sec, "exp", strlen("exp"),
                    key_sched_context, key_sched_context_len, ctx->exporter, ctx->kdf_Nh);
 
     if (ctx->debug) {
-        print_buffer("key", ctx->key, ctx->Nk);
-        print_buffer("nonce", ctx->base_nonce, ctx->Nn);
+        if (ctx->Nk) {
+            print_buffer("key", ctx->key, ctx->Nk);
+        }
+        if (ctx->Nn) {
+            print_buffer("nonce", ctx->base_nonce, ctx->Nn);
+        }
         print_buffer("exp", ctx->exporter, ctx->kdf_Nh);
     }
     ctx->setup = 1;

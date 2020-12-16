@@ -317,6 +317,7 @@ get_primitive (jsmntok_t *tok, char *buf, int len, char *match)
                     return val;
                 }
                 i += skip_single(t+1);
+                t = tok + i + 1;
                 continue;
             }
             i += skip_single(t);
@@ -350,6 +351,7 @@ get_string (jsmntok_t *tok, char *buf, int len, char *match, char **res)
                     return TOKLEN(t+1);
                 }
                 i += skip_single(t+1);
+                t = tok + i + 1;
                 continue;
             }
             i += skip_single(t);
@@ -418,6 +420,7 @@ do_exports (hpke_ctx *ctx, jsmntok_t *tok, char *buf, int len)
                     return 1;
                 }
                 i += skip_single(t+1);
+                t = tok + i + 1;
                 continue;
             }
             i += skip_single(t);
@@ -496,6 +499,7 @@ do_decryptions (hpke_ctx *ctx, jsmntok_t *tok, char *buf, int len)
                     return 1;
                 }
                 i += skip_single(t+1);
+                t = tok + i + 1;
                 continue;
             }
             i += skip_single(t);
@@ -579,6 +583,7 @@ do_encryptions (hpke_ctx *ctx, jsmntok_t *tok, char *buf, int len)
                     return 1;
                 }
                 i += skip_single(t+1);
+                t = tok + i + 1;
                 continue;
             }
             i += skip_single(t);
@@ -595,9 +600,10 @@ main (int argc, char **argv)
     jsmn_parser p;
     jsmntok_t *tok, *toks, *t;
     int c, fd = -1, ntoks, ndata, i, j, len, kem, kdf, aead, mode, jsondump = 0, deb = 0, chatty = 0;
-    char jsondata[500000], *str;
-    unsigned char *ikmE, *pkRm, *ikmS, *pkSm, *ikmR, *pkEm, *psk, *psk_id, *key, *exp, *info, *enc;
-    int ikmE_len, pkRm_len, ikmS_len, pkSm_len, ikmR_len, pkEm_len, psk_len, psk_id_len, key_len, exp_len, info_len, enc_len;
+    char jsondata[8000000], *str;
+    unsigned char *ikmE, *pkRm, *ikmS, *pkSm, *ikmR, *pkEm, *psk, *psk_id, *key, *exp, *info, *enc, *tvenc;
+    int ikmE_len, pkRm_len, ikmS_len, pkSm_len, ikmR_len, pkEm_len, psk_len, psk_id_len;
+    int key_len, exp_len, info_len, enc_len, tvenc_len;
     hpke_ctx *ctx;
 
     for (;;) {
@@ -608,7 +614,7 @@ main (int argc, char **argv)
         switch (c) {
             case 't':
                 if ((fd = open(optarg, O_RDONLY)) < 0) {
-                    fprintf(stderr, "%s: unable to open %s\n", argv[0], argv[1]);
+                    fprintf(stderr, "%s: unable to open %s\n", argv[0], optarg);
                     exit(1);
                 }
                 break;
@@ -646,13 +652,17 @@ main (int argc, char **argv)
     memset(jsondata, 0, sizeof(jsondata));
     ndata = read(fd, jsondata, sizeof(jsondata));
     if (ndata < 1) {
-        fprintf(stderr, "%s: read %d from %s\n", argv[0], ndata, argv[1]);
+        fprintf(stderr, "%s: failed to read json data (%d)\n", argv[0], ndata);
         exit(1);
     }
     close(fd);
     jsmn_init(&p);
     if ((ntoks = jsmn_parse(&p, jsondata, ndata, NULL, 1000)) == 0) {
         fprintf(stderr, "%s: unable to parse json data!\n", argv[0]);
+        exit(1);
+    }
+    if (ntoks < 1) {
+        fprintf(stderr, "%s: failure to parse json data (%d tokens)\n", argv[0], ntoks);
         exit(1);
     }
     if ((toks = (jsmntok_t *)malloc(ntoks * sizeof(jsmntok_t))) == NULL) {
@@ -669,9 +679,6 @@ main (int argc, char **argv)
         fprintf(stderr, "%s: first token is not a jsmn object!\n", argv[0]);
         exit(1);
     }
-    if (deb) {
-        printf("there are %d objects in the test vectors\n", tok->size);
-    }
     j = 1;
     for (i = 0; i < tok->size; i++) {
         t = toks + j;
@@ -684,15 +691,15 @@ main (int argc, char **argv)
          * only interested in the KEMs using the NIST curves
          */
         if ((kem == 16) || (kem == 17) || (kem == 18)) {
-            if (chatty) {
-                printf("%d: ", i);
-            }
             if (jsondump) {
                 dump_object(t, jsondata, ndata);
             }
             mode = get_primitive(t, jsondata, ndata, "mode");
             kdf = get_primitive(t, jsondata, ndata, "kdf_id");
             aead = get_primitive(t, jsondata, ndata, "aead_id");
+            if (chatty) {
+                printf("%d- %d/%d/%d/%d: ", i, kem, mode, kdf, aead); fflush(stdout);
+            }
             len = get_string(t, jsondata, ndata, "ikmE", &str);
             s2os(str, len, &ikmE, &ikmE_len);
             len = get_string(t, jsondata, ndata, "pkRm", &str);
@@ -713,6 +720,8 @@ main (int argc, char **argv)
             s2os(str, len, &psk_id, &psk_id_len);
             len = get_string(t, jsondata, ndata, "key", &str);
             s2os(str, len, &key, &key_len);
+            len = get_string(t, jsondata, ndata, "enc", &str);
+            s2os(str, len, &tvenc, &tvenc_len);
             len = get_string(t, jsondata, ndata, "exporter_secret", &str);
             s2os(str, len, &exp, &exp_len);
             /*
@@ -773,15 +782,20 @@ main (int argc, char **argv)
                 print_buffer("json exp", exp, exp_len);
                 exit(1);
             }
+            if ((tvenc_len != enc_len) || memcmp(tvenc, enc, enc_len)) {
+                fprintf(stderr, "enc mismatch %d!\n", i);
+                print_buffer("tv enc", tvenc, tvenc_len);
+                print_buffer("computed enc", enc, enc_len);
+            }
             if (chatty) {
-                printf("send...check, ");
+                printf("send..."); fflush(stdout);
             }
             if (do_encryptions(ctx, t, jsondata, ndata) < 0) {
                 fprintf(stderr, "Encryption failed!\n");
                 exit(1);
             }
             if (chatty) {
-                printf("encryptions...check, ");
+                printf("encryptions..."); fflush(stdout);
             }
             free(enc);
             free_hpke_context(ctx);
@@ -844,14 +858,14 @@ main (int argc, char **argv)
                 exit(1);
             }
             if (chatty) {
-                printf("receive...check, ");
+                printf("receive..."); fflush(stdout);
             }
             if (do_decryptions(ctx, t, jsondata, ndata) < 0) {
                 fprintf(stderr, "Decryption failed!\n");
                 exit(1);
             }
             if (chatty) {
-                printf("decryptions...check, ");
+                printf("decryptions..."); fflush(stdout);
             }
 
             if (do_exports(ctx, t, jsondata, ndata) < 0) {
@@ -859,7 +873,7 @@ main (int argc, char **argv)
                 exit(1);
             }
             if (chatty) {
-                printf("exports...check, ");
+                printf("exports..."); fflush(stdout);
             }
             free_hpke_context(ctx);
 
@@ -874,14 +888,17 @@ main (int argc, char **argv)
             free(psk_id);
             free(key);
             free(exp);
+            free(tvenc);
             if (chatty) {
                 printf("Passed!\n");
             }
-        } else if (chatty) {
-            printf("%d does not use NIST curve, skip\n", i);
-            if (jsondump) {
-                dump_object(t, jsondata, ndata);
+        } else {
+            if (chatty) {
+                printf("%d does not use NIST curve, skip\n", i);
             }
+//            if (jsondump) {
+//                dump_object(t, jsondata, ndata);
+//            }
         }
         j += skip_object(t);
     }

@@ -48,6 +48,7 @@
 #define ChaCha20Poly    0x0003
 #define AES_256_SIV     0x0004
 #define AES_512_SIV     0x0005
+#define EXPORTER_ONLY   0xffff
 
 #define MODE_BASE       0x00
 #define MODE_PSK        0x01
