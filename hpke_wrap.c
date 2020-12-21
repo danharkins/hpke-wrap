@@ -152,19 +152,19 @@ main (int argc, char **argv)
      */
     if (pkR_len < 66) {
         if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P256,
-                                       HKDF_SHA_256, AES_256_SIV)) == NULL) {
+                                       HKDF_SHA_256, AES_128_GCM)) == NULL) {
             fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
             exit(1);
         }
     } else if (pkR_len < 98) {
         if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P384,
-                                       HKDF_SHA_384, AES_512_SIV)) == NULL) {
+                                       HKDF_SHA_384, AES_256_GCM)) == NULL) {
             fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
             exit(1);
         }
     } else {
         if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P521,
-                                       HKDF_SHA_512, AES_512_SIV)) == NULL) {
+                                       HKDF_SHA_512, AES_256_GCM)) == NULL) {
             fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
             exit(1);
         }

@@ -1064,13 +1064,13 @@ evp_wrap (hpke_ctx *ctx, const EVP_CIPHER *whichone, unsigned char *aad, int aad
     sequence[9]  ^= num[1];
     sequence[8]  ^= num[0];
 
-    if (ctx->debug) {
-        printf("wrap\nseq = %d\n", ctx->seq);
-        print_buffer("nonce", ctx->base_nonce, ctx->Nn);
-        print_buffer("num", num, 4);
-        print_buffer("sequence", sequence, ctx->Nn);
-        print_buffer("aad", aad, aad_len);
-    }
+//    if (ctx->debug) {
+//        printf("wrap\nseq = %d\n", ctx->seq);
+//        print_buffer("nonce", ctx->base_nonce, ctx->Nn);
+//        print_buffer("num", num, 4);
+//        print_buffer("sequence", sequence, ctx->Nn);
+//        print_buffer("aad", aad, aad_len);
+//    }
     ctx->seq++;
 
     if ((cctx = EVP_CIPHER_CTX_new()) == NULL) {
@@ -1080,9 +1080,11 @@ evp_wrap (hpke_ctx *ctx, const EVP_CIPHER *whichone, unsigned char *aad, int aad
         fprintf(stderr, "can't initialize EVP encryption!\n");
         goto fin;
     }
-    if (!EVP_EncryptUpdate(cctx, NULL, &len, aad, aad_len)) {
-        fprintf(stderr, "can't add aad to encryption context\n");
-        goto fin;
+    if (aad_len && (aad != NULL)) {
+        if (!EVP_EncryptUpdate(cctx, NULL, &len, aad, aad_len)) {
+            fprintf(stderr, "can't add aad to encryption context\n");
+            goto fin;
+        }
     }
     if (!EVP_EncryptUpdate(cctx, ct, &len, pt, pt_len)) {
         fprintf(stderr, "can't update plaintext into encryption context!\n");
@@ -1168,13 +1170,13 @@ evp_unwrap (hpke_ctx *ctx, const EVP_CIPHER *whichone, unsigned char *aad, int a
     sequence[9]  ^= num[1];
     sequence[8]  ^= num[0];
 
-    if (ctx->debug) {
-        printf("wrap\nseq = %d\n", ctx->seq);
-        print_buffer("nonce", ctx->base_nonce, ctx->Nn);
-        print_buffer("num", num, 4);
-        print_buffer("sequence", sequence, ctx->Nn);
-        print_buffer("aad", aad, aad_len);
-    }
+//    if (ctx->debug) {
+//        printf("wrap\nseq = %d\n", ctx->seq);
+//        print_buffer("nonce", ctx->base_nonce, ctx->Nn);
+//        print_buffer("num", num, 4);
+//        print_buffer("sequence", sequence, ctx->Nn);
+//        print_buffer("aad", aad, aad_len);
+//    }
     ctx->seq++;
 
     if ((cctx = EVP_CIPHER_CTX_new()) == NULL) {
@@ -1184,9 +1186,11 @@ evp_unwrap (hpke_ctx *ctx, const EVP_CIPHER *whichone, unsigned char *aad, int a
         fprintf(stderr, "can't initialize EVP encryption!\n");
         goto fin;
     }
-    if (!EVP_DecryptUpdate(cctx, NULL, &len, aad, aad_len)) {
-        fprintf(stderr, "can't add aad to encryption context\n");
-        goto fin;
+    if (aad_len && (aad != NULL)) {
+        if (!EVP_DecryptUpdate(cctx, NULL, &len, aad, aad_len)) {
+            fprintf(stderr, "can't add aad to encryption context\n");
+            goto fin;
+        }
     }
     if (!EVP_DecryptUpdate(cctx, pt, &len, ct, ct_len)) {
         fprintf(stderr, "can't update plaintext into encryption context!\n");
@@ -1203,7 +1207,7 @@ evp_unwrap (hpke_ctx *ctx, const EVP_CIPHER *whichone, unsigned char *aad, int a
         ret = -1;
         goto fin;
     }
-    ret += len;
+    ret = len;
 fin:        
     if (cctx != NULL) {
         EVP_CIPHER_CTX_free(cctx);

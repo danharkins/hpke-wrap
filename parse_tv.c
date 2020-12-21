@@ -373,15 +373,20 @@ do_single_export (hpke_ctx *ctx, jsmntok_t *tok, char *buf, int len)
     unsigned char *context, *value, *myval;
     int context_len, value_len, explen, slen, res = -1;
     
-    slen = get_string(tok, buf, len, "exportContext", &str);
+    slen = get_string(tok, buf, len, "exporter_context", &str);
     s2os(str, slen, &context, &context_len);
-    slen = get_string(tok, buf, len, "exportValue", &str);
+    slen = get_string(tok, buf, len, "exported_value", &str);
     s2os(str, slen, &value, &value_len);
-    explen = get_primitive(tok, buf, len, "exportLength");
+    explen = get_primitive(tok, buf, len, "L");
 
     export_secret(ctx, context, context_len, explen, &myval);
     if (memcmp(myval, value, explen) == 0) {
         res = 1;
+    } else {
+        print_buffer("exporter_context", context, context_len);
+        printf("L: %d (value len = %d)\n", explen, value_len);
+        print_buffer("expected value", value, value_len);
+        print_buffer("computed value", myval, explen);
     }
     free(myval);
     free(context);
