@@ -1202,7 +1202,7 @@ evp_unwrap (hpke_ctx *ctx, const EVP_CIPHER *whichone, unsigned char *aad, int a
         ret = -1;
         goto fin;
     }
-    if (!EVP_EncryptFinal(cctx, pt + len, &len)) {
+    if (!EVP_DecryptFinal(cctx, pt + len, &len)) {
         fprintf(stderr, "can't finalize decryption context!\n");
         ret = -1;
         goto fin;
