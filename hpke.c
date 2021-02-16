@@ -391,7 +391,7 @@ labeled_extract (hpke_ctx *ctx, int type,
 
     suite = htons(ctx->kem);
     str = NULL; str_len = 0;
-    str = concat(str, &str_len, "HPKE-07", strlen("HPKE-07"));
+    str = concat(str, &str_len, "HPKE-v1", strlen("HPKE-v1"));
     if (type == KEM_LABELED) {
         str = concat(str, &str_len, "KEM", 3);
         str = concat(str, &str_len, (unsigned char *)&suite, 2);
@@ -435,7 +435,7 @@ labeled_expand (hpke_ctx *ctx, int type, unsigned char *prk,
 
     str = NULL; str_len = 0;
     str = concat(str, &str_len, (unsigned char *)&L, 2);
-    str = concat(str, &str_len, "HPKE-07", strlen("HPKE-07"));
+    str = concat(str, &str_len, "HPKE-v1", strlen("HPKE-v1"));
     if (type == KEM_LABELED) {
         str = concat(str, &str_len, "KEM", 3);
         str = concat(str, &str_len, (unsigned char *)&suite, 2);
