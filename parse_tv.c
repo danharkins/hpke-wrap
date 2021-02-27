@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Dan Harkins, 2020
+ * Copyright (c) Dan Harkins, 2020, 2021
  *
  *  Copyright holder grants permission for redistribution and use in source 
  *  and binary forms, with or without modification, provided that the 
@@ -444,15 +444,13 @@ int
 do_single_decryption (hpke_ctx *ctx, jsmntok_t *tok, char *buf, int len)
 {
     char *str;
-    unsigned char *aad, *ct, *nonce, *pt, *mypt;
-    int aad_len, ct_len, nonce_len, pt_len, slen, res = -1;
+    unsigned char *aad, *ct, *pt, *mypt;
+    int aad_len, ct_len, pt_len, slen, res = -1;
     
     slen = get_string(tok, buf, len, "aad", &str);
     s2os(str, slen, &aad, &aad_len);
     slen = get_string(tok, buf, len, "ciphertext", &str);
     s2os(str, slen, &ct, &ct_len);
-    slen = get_string(tok, buf, len, "nonce", &str);
-    s2os(str, slen, &nonce, &nonce_len);
     slen = get_string(tok, buf, len, "plaintext", &str);
     s2os(str, slen, &pt, &pt_len);
 
@@ -467,7 +465,6 @@ do_single_decryption (hpke_ctx *ctx, jsmntok_t *tok, char *buf, int len)
     free(mypt);
     free(aad);
     free(ct);
-    free(nonce);
     free(pt);
     return res;
 }
@@ -523,15 +520,13 @@ int
 do_single_encryption (hpke_ctx *ctx, jsmntok_t *tok, char *buf, int len)
 {
     char *str;
-    unsigned char *aad, *ct, *nonce, *pt, *myct;
-    int aad_len, ct_len, nonce_len, pt_len, slen, res = -1;
+    unsigned char *aad, *ct, *pt, *myct;
+    int aad_len, ct_len, pt_len, slen, res = -1;
     
     slen = get_string(tok, buf, len, "aad", &str);
     s2os(str, slen, &aad, &aad_len);
     slen = get_string(tok, buf, len, "ciphertext", &str);
     s2os(str, slen, &ct, &ct_len);
-    slen = get_string(tok, buf, len, "nonce", &str);
-    s2os(str, slen, &nonce, &nonce_len);
     slen = get_string(tok, buf, len, "plaintext", &str);
     s2os(str, slen, &pt, &pt_len);
 
@@ -546,7 +541,6 @@ do_single_encryption (hpke_ctx *ctx, jsmntok_t *tok, char *buf, int len)
     free(myct);
     free(aad);
     free(ct);
-    free(nonce);
     free(pt);
     return res;
 }
@@ -695,7 +689,8 @@ main (int argc, char **argv)
         /*
          * only interested in the KEMs using the NIST curves
          */
-        if ((kem == 16) || (kem == 17) || (kem == 18)) {
+        if ((kem == 16) || (kem == 17) || (kem == 18) ||
+            (kem == 19) || (kem == 20) || (kem == 21)) {
             if (jsondump) {
                 dump_object(t, jsondata, ndata);
             }

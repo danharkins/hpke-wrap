@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Dan Harkins, 2020
+ * Copyright (c) Dan Harkins, 2020, 2021
  *
  *  Copyright holder grants permission for redistribution and use in source 
  *  and binary forms, with or without modification, provided that the 
@@ -95,10 +95,10 @@ main (int argc, char **argv)
     hpke_ctx *ctx = NULL;
     unsigned char *c = NULL, *k = NULL, *r = NULL, *ikmR = NULL;
     unsigned char *aad = NULL, *info = NULL, *pt = NULL, *ct = NULL, *pkS = NULL;
-    int aad_len = 0, info_len = 0, t_len = 0, pkS_len = 0, ikmR_len = 0, debug = 0;
+    int aad_len = 0, info_len = 0, t_len = 0, pkS_len = 0, ikmR_len = 0, debug = 0, compact = 0;
 
     for (;;) {
-        x = getopt(argc, argv, "a:i:p:c:k:r:d:bh");
+        x = getopt(argc, argv, "a:i:p:c:k:r:d:bfh");
         if (x < 0) {
             break;
         }
@@ -124,6 +124,9 @@ main (int argc, char **argv)
             case 'b':
                 b64 = 1;
                 break;
+            case 'f':
+                compact = 1;
+                break;
             case 'h':
             default:
                 fprintf(stderr, "USAGE: %s [-aikrscbh]\n"
@@ -133,6 +136,7 @@ main (int argc, char **argv)
                         "\t-r  keying material to derive receiver's keypair\n"
                         "\t-c  the ciphertext to unwrap\n"
                         "\t-b  base64 decode the input prior to processing\n"
+                        "\t-f  force compact representation for ambiguously sized public keys\n"
                         "\t-h  this help message\n",
                         argv[0]);
                 exit(1);
@@ -187,29 +191,75 @@ main (int argc, char **argv)
         s2os(c, &ct, &t_len);
     }
 
-    if (pkS_len < 66) {
-        if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P256,
-                                       HKDF_SHA_256, AES_128_GCM)) == NULL) {
-            fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
+    switch (pkS_len) {
+        case 32:
+            /*
+             * compact p256
+             */
+            if ((ctx = create_hpke_context(MODE_BASE, DHKEM_CP256,
+                                           HKDF_SHA_256, AES_128_GCM)) == NULL) {
+                fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
+                exit(1);
+            }
+            break;
+        case 48:
+            /*
+             * compact p384
+             */
+            if ((ctx = create_hpke_context(MODE_BASE, DHKEM_CP384,
+                                           HKDF_SHA_384, AES_256_GCM)) == NULL) {
+                fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
+                exit(1);
+            }
+            break;
+        case 66:
+            /*
+             * either compact p521 or uncompressed p256
+             *
+             * make a guess, if it fails then use -f 
+             */
+            if ((pkS[0] != 0x04) || compact) {
+                if ((ctx = create_hpke_context(MODE_BASE, DHKEM_CP521,
+                                               HKDF_SHA_512, AES_256_GCM)) == NULL) {
+                    fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
+                    exit(1);
+                }
+            } else {
+                if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P256,
+                                               HKDF_SHA_256, AES_128_GCM)) == NULL) {
+                    fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
+                    exit(1);
+                }
+            }
+            break;
+        case 98:
+            /*
+             * uncompressed p384
+             */
+            if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P384,
+                                           HKDF_SHA_384, AES_256_GCM)) == NULL) {
+                fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
+                exit(1);
+            }
+            break;
+        case 134:
+            /*
+             * uncompressed p521
+             */
+            if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P521,
+                                           HKDF_SHA_512, AES_256_GCM)) == NULL) {
+                fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
+                exit(1);
+            }
+            break;
+        default:
+            fprintf(stderr, "%s: unknown public key size, %d\n", argv[0], pkS_len);
             exit(1);
-        }
-    } else if (pkS_len < 98) {
-        if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P384,
-                                       HKDF_SHA_384, AES_256_GCM)) == NULL) {
-            fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
-            exit(1);
-        }
-    } else {
-        if ((ctx = create_hpke_context(MODE_BASE, DHKEM_P521,
-                                       HKDF_SHA_512, AES_256_GCM)) == NULL) {
-            fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
-            exit(1);
-        }
     }
     set_hpke_debug(ctx, debug);
 
     if (derive_local_static_keypair(ctx, ikmR, ikmR_len) < 1) {
-        fprintf(stderr, "%s: can't fix static keypair to unwrap!\n", argv[0]);
+        fprintf(stderr, "%s: can't fix static keypair to unwrap!\nTry again with -f maybe\n", argv[0]);
         exit(1);
     }
 

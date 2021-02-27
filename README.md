@@ -1,9 +1,11 @@
 # hpke-wrap
 
-Implementation of Hybrid Public Key Encryption (draft-irtf-cfrg-hpke-07)
+Implementation of Hybrid Public Key Encryption (draft-irtf-cfrg-hpke-08)
 
-  Note: all modes are supported but only KEMs with NIST curves, also supports AES-SIV
-        as an AEAD even though that's not part of the draft.
+  Also supports compact representation for the NIST curves in the form of additional
+  KEMs-- 19 for p256, 20 for p384, and 21 for p521-- as well as AES-SIV as an AEAD.
+
+  Note: all modes are supported but only KEMs with NIST curves.
 
   This distribution requires OpenSSL. Hand-edit the Makefile to point to the right
   location.
@@ -33,7 +35,7 @@ All the code lives in hpke.c and apps that call these APIs need to include hpke.
   and the AEAD id.
 
   Mode is one of: MODE_BASE, MODE_PSK, MODE_AUTH, MODE_AUTH_PSK
-  KEM id is one of: DHKEM_P256, DHKEM_P384, DHKEM_P521
+  KEM id is one of: DHKEM_P256, DHKEM_P384, DHKEM_P521, DHKEM_CP256, DHKEM_CP384, DHKEM_CP521
   KDF id is one of: HKDF_SHA_256, HKDF_SHA_384, HKDF_SHA_512
   AEAD id is one of: AES_128_GCM, AES_256_GCM, AES_256_SIV, AES_512_SIV, ChaCha20Poly,
 		    EXPORTER-ONLY
@@ -163,24 +165,33 @@ parse_tv.c
 hpke_wrap.c
 
   Encrypt and authenticate a plaintext to a recipient identified by a public key.
+  Defaults to AES-SIV with a key size dependent on the recipient's public key.
 
   USAGE: ./hpke_wrap [-aikspbh]
         -a  some AAD to include in the wrapping
         -i  some info to include in the wrapping
-        -k  the recipient's public key in SECG uncompressed form
+        -k  the recipient's public key
         -p  the plaintext to wrap
         -b  base64 encode the output
+	-f  force compact representation for ambiguously sized public keys
         -h  this help message
 
 hpke_unwrap.c
 
-  Decrypt and validate a ciphertext that had been wrapped by hpke_wrap.
+  Decrypt and validate a ciphertext that had been wrapped by hpke_wrap. Defaults
+  to AES-SIV with a key size dependent on the size of the sender's public key.
 
   USAGE: ./hpke_unwrap [-aikrscbh]
         -a  some AAD to include in the unwrapping
         -i  some info to include in the unwrapping
-        -k  the sender's public key in SECG uncompressed form
+        -k  the sender's public key
         -r  keying material to derive receiver's keypair
         -c  the ciphertext to unwrap
         -b  base64 decode the input prior to processing
+	-f  force compact representation for ambiguously sized public keys
         -h  this help message
+
+NOTE: for both hpke_wrap and hpke_unwrap, a compact p521 key is the same size as an
+ucompressed p256 key. The routines make an educated guess but if wrapping/unwrapping
+fails try again with -f and see if it works.
+

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Dan Harkins, 2020
+ * Copyright (c) Dan Harkins, 2020, 2021
  *
  *  Copyright holder grants permission for redistribution and use in source 
  *  and binary forms, with or without modification, provided that the 
@@ -38,6 +38,9 @@
 #define DHKEM_P256      0x0010
 #define DHKEM_P384      0x0011
 #define DHKEM_P521      0x0012
+#define DHKEM_CP256     0x0013
+#define DHKEM_CP384     0x0014
+#define DHKEM_CP521     0x0015
 
 #define HKDF_SHA_256    0x0001
 #define HKDF_SHA_384    0x0002

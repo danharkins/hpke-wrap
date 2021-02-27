@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Dan Harkins, 2020
+ * Copyright (c) Dan Harkins, 2020, 2021
  *
  *  Copyright holder grants permission for redistribution and use in source 
  *  and binary forms, with or without modification, provided that the 
@@ -135,7 +135,7 @@ concat (unsigned char *s1, int *s1len, unsigned char *s2, int s2len)
  * convert an EC_POINT to SECG uncompressed representation
  */
 static int 
-serialize_pubkey (hpke_ctx *ctx, EC_POINT *point, unsigned char **str)
+serialize_uncomp_pubkey (hpke_ctx *ctx, EC_POINT *point, unsigned char **str)
 {
     BIGNUM *x = NULL, *y = NULL;
     unsigned char *buf = NULL, secg_goo;
@@ -175,10 +175,58 @@ fin:
 }
 
 /*
+ * convert an EC_POINT to compact representation
+ */
+static int 
+serialize_compact_pubkey (hpke_ctx *ctx, EC_POINT *point, unsigned char **str)
+{
+    BIGNUM *x = NULL;
+
+    if (((x = BN_new()) == NULL) ||
+        !EC_POINT_get_affine_coordinates_GFp(ctx->curve, point, x, NULL, ctx->bnctx)) {
+        goto fin;
+    }
+    if ((*str = malloc(ctx->Ndh)) == NULL) {
+        goto fin;
+    }
+
+    memset(*str, 0, ctx->Ndh);
+    BN_bn2bin(x, *str + (ctx->Ndh - BN_num_bytes(x)));
+
+fin:
+    if (x != NULL) {
+        BN_free(x);
+    }
+    return ctx->Ndh;
+}
+
+static int
+serialize_pubkey (hpke_ctx *ctx, EC_POINT *point, unsigned char **str)
+{
+    int ret = -1;
+
+    switch (ctx->kem) {
+        case DHKEM_P256:
+        case DHKEM_P384:
+        case DHKEM_P521:
+            ret = serialize_uncomp_pubkey(ctx, point, str);
+            break;
+        case DHKEM_CP256:
+        case DHKEM_CP384:
+        case DHKEM_CP521:
+            ret = serialize_compact_pubkey(ctx, point, str);
+            break;
+        default:
+            break;
+    }
+    return ret;
+}
+
+/*
  * take an uncompressed SECG serialized public key and make an EC_POINT
  */
 static EC_POINT *
-deserialize_pubkey (hpke_ctx *ctx, unsigned char *str, int strlen)
+deserialize_uncomp_pubkey (hpke_ctx *ctx, unsigned char *str, int strlen)
 {
     BIGNUM *x = NULL, *y = NULL;
     EC_POINT *point = NULL;
@@ -213,6 +261,61 @@ fail:
         BN_free(y);
     }
     return point;
+}
+
+/*
+ * take a compact serialized public key and make an EC_POINT
+ */
+static EC_POINT *
+deserialize_compact_pubkey (hpke_ctx *ctx, unsigned char *str, int strlen)
+{
+    BIGNUM *x = NULL, *y = NULL;
+    EC_POINT *point = NULL;
+    
+    if (strlen != ctx->Ndh) {
+        fprintf(stderr, "serialized pubkey is improperly formatted\n");
+        goto fail;
+    }
+    if (((x = BN_new()) == NULL) || ((point = EC_POINT_new(ctx->curve)) == NULL)) {
+        fprintf(stderr, "can't create point to deserialize!\n");
+        goto fail;
+    }
+    BN_bin2bn(str, ctx->Ndh, x);
+
+    if (!EC_POINT_set_compressed_coordinates_GFp(ctx->curve, point, x, 1, ctx->bnctx) ||
+        !EC_POINT_is_on_curve(ctx->curve, point, ctx->bnctx)) {
+        fprintf(stderr, "bad (x,y) coordinates in serialization!\n");
+        EC_POINT_free(point);
+        point = NULL;
+        goto fail;
+    }
+fail:
+    if (x != NULL) {
+        BN_free(x);
+    }
+    return point;
+}
+
+static EC_POINT *
+deserialize_pubkey (hpke_ctx *ctx, unsigned char *str, int strlen)
+{
+    EC_POINT *ret = NULL;
+
+    switch (ctx->kem) {
+        case DHKEM_P256:
+        case DHKEM_P384:
+        case DHKEM_P521:
+            ret = deserialize_uncomp_pubkey(ctx, str, strlen);
+            break;
+        case DHKEM_CP256:
+        case DHKEM_CP384:
+        case DHKEM_CP521:
+            ret = deserialize_compact_pubkey(ctx, str, strlen);
+            break;
+        default:
+            break;
+    }
+    return ret;
 }
 
 /*
@@ -282,18 +385,21 @@ create_hpke_context (unsigned char mode, uint16_t kem, uint16_t kdf_id, uint16_t
     ctx->kem = kem;
     switch (kem) {
         case DHKEM_P256:
+        case DHKEM_CP256:
             ctx->kem_h = EVP_sha256();
             ctx->kem_Nh = 32;
             ctx->Ndh = 32;
             nid = NID_X9_62_prime256v1;
             break;
         case DHKEM_P384:
+        case DHKEM_CP384:
             ctx->kem_h = EVP_sha384();
             ctx->kem_Nh = 48;
             ctx->Ndh = 48;
             nid = NID_secp384r1;
             break;
         case DHKEM_P521:
+        case DHKEM_CP521:
             ctx->kem_h = EVP_sha512();
             ctx->kem_Nh = 64;
             ctx->Ndh = 66;
@@ -335,11 +441,11 @@ create_hpke_context (unsigned char mode, uint16_t kem, uint16_t kdf_id, uint16_t
             ctx->Nk = 32;
             break;
         case AES_256_SIV:
-            ctx->Nn = 12;
+            ctx->Nn = 0;
             ctx->Nk = 32;
             break;
         case AES_512_SIV:
-            ctx->Nn = 12;
+            ctx->Nn = 0;
             ctx->Nk = 64;
             break;
         case ChaCha20Poly:
@@ -499,7 +605,7 @@ derive_local_static_keypair (hpke_ctx *ctx, unsigned char *ikm, int ikm_len)
     counter = 0;
     do {
         labeled_expand(ctx, KEM_LABELED, prk, "candidate", strlen("candidate"), &counter, 1, sec, ctx->Ndh);
-        if (ctx->kem == DHKEM_P521) {
+        if ((ctx->kem == DHKEM_P521) || (ctx->kem == DHKEM_CP521))  {
             sec[0] &= 0x01;
         }
         counter++;
@@ -545,7 +651,7 @@ derive_ephem_keypair (hpke_ctx *ctx, unsigned char *ikm, int ikm_len)
     counter = 0;
     do {
         labeled_expand(ctx, KEM_LABELED, prk, "candidate", strlen("candidate"), &counter, 1, sec, ctx->Ndh);
-        if (ctx->kem == DHKEM_P521) {
+        if ((ctx->kem == DHKEM_P521) || (ctx->kem == DHKEM_CP521))  {
             sec[0] &= 0x01;
         }
         counter++;
@@ -1045,7 +1151,7 @@ siv_wrap (hpke_ctx *ctx, int ver, unsigned char *aad, int aad_len, unsigned char
      * first component of the vector of AAD and send the passed AAD as the second 
      * component. 
      */
-    siv_encrypt(&sivc, pt, ct, pt_len, tag, 2, ctx->base_nonce, ctx->Nn, aad, aad_len);
+    siv_encrypt(&sivc, pt, ct, pt_len, tag, 1, aad, aad_len);
     return;
 }
 
@@ -1063,14 +1169,6 @@ evp_wrap (hpke_ctx *ctx, const EVP_CIPHER *whichone, unsigned char *aad, int aad
     sequence[10] ^= num[2];
     sequence[9]  ^= num[1];
     sequence[8]  ^= num[0];
-
-//    if (ctx->debug) {
-//        printf("wrap\nseq = %d\n", ctx->seq);
-//        print_buffer("nonce", ctx->base_nonce, ctx->Nn);
-//        print_buffer("num", num, 4);
-//        print_buffer("sequence", sequence, ctx->Nn);
-//        print_buffer("aad", aad, aad_len);
-//    }
     ctx->seq++;
 
     if ((cctx = EVP_CIPHER_CTX_new()) == NULL) {
@@ -1152,7 +1250,7 @@ siv_unwrap (hpke_ctx *ctx, int ver, unsigned char *aad, int aad_len, unsigned ch
     siv_ctx sivc;
 
     siv_init(&sivc, ctx->key, ver);
-    return siv_decrypt(&sivc, ct, pt, ct_len, tag, 2, ctx->base_nonce, ctx->Nn, aad, aad_len);
+    return siv_decrypt(&sivc, ct, pt, ct_len, tag, 1, aad, aad_len);
 }
 
 static int
@@ -1169,14 +1267,6 @@ evp_unwrap (hpke_ctx *ctx, const EVP_CIPHER *whichone, unsigned char *aad, int a
     sequence[10] ^= num[2];
     sequence[9]  ^= num[1];
     sequence[8]  ^= num[0];
-
-//    if (ctx->debug) {
-//        printf("wrap\nseq = %d\n", ctx->seq);
-//        print_buffer("nonce", ctx->base_nonce, ctx->Nn);
-//        print_buffer("num", num, 4);
-//        print_buffer("sequence", sequence, ctx->Nn);
-//        print_buffer("aad", aad, aad_len);
-//    }
     ctx->seq++;
 
     if ((cctx = EVP_CIPHER_CTX_new()) == NULL) {
