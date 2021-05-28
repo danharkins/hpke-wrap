@@ -450,8 +450,14 @@ do_single_decryption (hpke_ctx *ctx, jsmntok_t *tok, char *buf, int len)
     slen = get_string(tok, buf, len, "aad", &str);
     s2os(str, slen, &aad, &aad_len);
     slen = get_string(tok, buf, len, "ciphertext", &str);
+    if (slen == 0) {
+        slen = get_string(tok, buf, len, "ct", &str);
+    }
     s2os(str, slen, &ct, &ct_len);
     slen = get_string(tok, buf, len, "plaintext", &str);
+    if (slen == 0) {
+        slen = get_string(tok, buf, len, "pt", &str);
+    }
     s2os(str, slen, &pt, &pt_len);
 
     if ((mypt = (unsigned char *)malloc(pt_len)) == NULL) {
@@ -526,8 +532,14 @@ do_single_encryption (hpke_ctx *ctx, jsmntok_t *tok, char *buf, int len)
     slen = get_string(tok, buf, len, "aad", &str);
     s2os(str, slen, &aad, &aad_len);
     slen = get_string(tok, buf, len, "ciphertext", &str);
+    if (slen == 0) {
+        slen = get_string(tok, buf, len, "ct", &str);
+    }
     s2os(str, slen, &ct, &ct_len);
     slen = get_string(tok, buf, len, "plaintext", &str);
+    if (slen == 0) {
+        slen = get_string(tok, buf, len, "pt", &str);
+    }
     s2os(str, slen, &pt, &pt_len);
 
     if ((myct = (unsigned char *)malloc(ct_len)) == NULL) {
