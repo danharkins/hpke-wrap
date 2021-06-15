@@ -205,6 +205,9 @@ serialize_pubkey (hpke_ctx *ctx, EC_POINT *point, unsigned char **str)
 {
     int ret = -1;
 
+    if (ctx == NULL) {
+        return ret;
+    }
     switch (ctx->kem) {
         case DHKEM_P256:
         case DHKEM_P384:
@@ -301,6 +304,9 @@ deserialize_pubkey (hpke_ctx *ctx, unsigned char *str, int strlen)
 {
     EC_POINT *ret = NULL;
 
+    if (ctx == NULL) {
+        return ret;
+    }
     switch (ctx->kem) {
         case DHKEM_P256:
         case DHKEM_P384:
@@ -475,7 +481,9 @@ create_hpke_context (unsigned char mode, uint16_t kem, uint16_t kdf_id, uint16_t
 void
 set_hpke_debug (hpke_ctx *ctx, int deb)
 {
-    ctx->debug = deb;
+    if (ctx != NULL) {
+        ctx->debug = deb;
+    }
 }
 
 /*
@@ -570,6 +578,9 @@ labeled_expand (hpke_ctx *ctx, int type, unsigned char *prk,
 int
 assign_peer_static_keypair (hpke_ctx *ctx, unsigned char *pkS, int pkS_len)
 {
+    if (ctx == NULL) {
+        return 0;
+    }
     if ((ctx->idPeer = deserialize_pubkey(ctx, pkS, pkS_len)) == NULL) {
         fprintf(stderr, "unable to assign peer static keypair!\n");
         return -1;
@@ -588,6 +599,9 @@ derive_local_static_keypair (hpke_ctx *ctx, unsigned char *ikm, int ikm_len)
     BIGNUM *order;
     const EC_POINT *G;
 
+    if (ctx == NULL) {
+        return 0;
+    }
     if (((ctx->skmeS = BN_new()) == NULL) ||
         ((order = BN_new()) == NULL) ||
         ((ctx->pkmeS = EC_POINT_new(ctx->curve)) == NULL)) {
@@ -634,6 +648,9 @@ derive_ephem_keypair (hpke_ctx *ctx, unsigned char *ikm, int ikm_len)
     BIGNUM *order;
     const EC_POINT *G;
 
+    if (ctx == NULL) {
+        return 0;
+    }
     if (((ctx->skmeE = BN_new()) == NULL) ||
         ((order = BN_new()) == NULL) ||
         ((ctx->pkmeE = EC_POINT_new(ctx->curve)) == NULL)) {
@@ -677,6 +694,9 @@ generate_ephem_keypair (hpke_ctx *ctx)
 {
     unsigned char ikm[P521_COORD_LEN];
 
+    if (ctx == NULL) {
+        return 0;
+    }
     if (!RAND_bytes(ikm, ctx->Ndh)) {
         fprintf(stderr, "unable to obtain random entrpy for keypair!\n");
         return -1;
@@ -1053,6 +1073,9 @@ sender (hpke_ctx *ctx, unsigned char *pkSPeerbytes, int pkSPeerlen,
     unsigned char shared_secret[HPKE_MAX_HASH_LEN];
     int ss_len;
     
+    if (ctx == NULL) {
+        return 0;
+    }
     if (add_check_psk(ctx, psk, psk_len, psk_id, psk_id_len) < 1) {
         fprintf(stderr, "bad psk for sender KEM!\n");
         return -1;
@@ -1082,6 +1105,9 @@ receiver (hpke_ctx *ctx, unsigned char *pkEPeerbytes, int pkEPeerlen,
     unsigned char shared_secret[HPKE_MAX_HASH_LEN];
     int ss_len;
     
+    if (ctx == NULL) {
+        return 0;
+    }
     if (add_check_psk(ctx, psk, psk_len, psk_id, psk_id_len) < 1) {
         fprintf(stderr, "bad psk for receiver KEM!\n");
         return -1;
@@ -1106,7 +1132,7 @@ receiver (hpke_ctx *ctx, unsigned char *pkEPeerbytes, int pkEPeerlen,
 int
 get_exporter (hpke_ctx *ctx, unsigned char **exporter)
 {
-    if (!ctx->setup) {
+    if ((ctx == NULL) || !ctx->setup) {
         return 0;
     }
     if ((*exporter = (unsigned char *)malloc(ctx->kdf_Nh)) == NULL) {
@@ -1124,6 +1150,9 @@ get_exporter (hpke_ctx *ctx, unsigned char **exporter)
 int
 export_secret (hpke_ctx *ctx, unsigned char *expctx, int expctx_len, int explen, unsigned char **expvalue)
 {
+    if (ctx == NULL) {
+        return 0;
+    }
     if ((*expvalue = (unsigned char *)malloc(explen)) == NULL) {
         return -1;
     }
@@ -1214,6 +1243,9 @@ int
 wrap (hpke_ctx *ctx, unsigned char *aad, int aad_len, unsigned char *pt, int pt_len,
       unsigned char *ct, unsigned char *tag)
 {
+    if (ctx == NULL) {
+        return 0;
+    }
     switch (ctx->aead_id) {
         case AES_128_GCM:
             if (evp_wrap(ctx, EVP_aes_128_gcm(), aad, aad_len, pt, pt_len, ct, tag) < 0) {
@@ -1314,6 +1346,9 @@ unwrap (hpke_ctx *ctx, unsigned char *aad, int aad_len, unsigned char *ct, int c
 {
     int ret = -1;
     
+    if (ctx == NULL) {
+        return ret;
+    }
     switch (ctx->aead_id) {
         case AES_128_GCM:
             ret = evp_unwrap(ctx, EVP_aes_128_gcm(), aad, aad_len, ct, ct_len, pt, tag);

@@ -193,7 +193,7 @@ main (int argc, char **argv)
              * compact p256
              */
             if ((ctx = create_hpke_context(MODE_BASE, DHKEM_CP256,
-                                           HKDF_SHA_256, AES_128_GCM)) == NULL) {
+                                           HKDF_SHA_256, AES_256_SIV)) == NULL) {
                 fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
                 exit(1);
             }
@@ -203,7 +203,7 @@ main (int argc, char **argv)
              * compact p384
              */
             if ((ctx = create_hpke_context(MODE_BASE, DHKEM_CP384,
-                                           HKDF_SHA_384, AES_256_GCM)) == NULL) {
+                                           HKDF_SHA_384, AES_512_SIV)) == NULL) {
                 fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
                 exit(1);
             }
@@ -224,7 +224,7 @@ main (int argc, char **argv)
              *
              */
             if ((ctx = create_hpke_context(MODE_BASE, DHKEM_CP521,
-                                           HKDF_SHA_512, AES_256_GCM)) == NULL) {
+                                           HKDF_SHA_512, AES_512_SIV)) == NULL) {
                 fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
                 exit(1);
             }

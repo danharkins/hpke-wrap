@@ -71,6 +71,9 @@ dump_buffer (unsigned char *buf, int len)
 static void
 print_buffer (char *str, unsigned char *buf, int len)
 {
+    if (len == 0) {
+        return;
+    }
     printf("%s:\n", str);
     dump_buffer(buf, len);
     printf("\n");
@@ -523,7 +526,7 @@ do_decryptions (hpke_ctx *ctx, jsmntok_t *tok, char *buf, int len)
  * and verify the encryption
  */
 int
-do_single_encryption (hpke_ctx *ctx, jsmntok_t *tok, char *buf, int len)
+do_single_encryption (hpke_ctx *ctx, jsmntok_t *tok, char *buf, int len, int dump)
 {
     char *str;
     unsigned char *aad, *ct, *pt, *myct;
@@ -550,6 +553,11 @@ do_single_encryption (hpke_ctx *ctx, jsmntok_t *tok, char *buf, int len)
     if (memcmp(myct, ct, ct_len) == 0) {
         res = 1;
     }
+    if (dump) {
+        print_buffer("pt", pt, pt_len);
+        print_buffer("aad", aad, aad_len);
+        print_buffer("ct", ct, ct_len);
+    }
     free(myct);
     free(aad);
     free(ct);
@@ -558,7 +566,7 @@ do_single_encryption (hpke_ctx *ctx, jsmntok_t *tok, char *buf, int len)
 }
 
 int
-do_encryptions (hpke_ctx *ctx, jsmntok_t *tok, char *buf, int len)
+do_encryptions (hpke_ctx *ctx, jsmntok_t *tok, char *buf, int len, int dump)
 {
     jsmntok_t *t, *arr, *obj;
     int i, j, k, sz;
@@ -584,7 +592,7 @@ do_encryptions (hpke_ctx *ctx, jsmntok_t *tok, char *buf, int len)
                         /*
                          * ...each of which represents a single encryption
                          */
-                        if (do_single_encryption(ctx, obj, buf, len) < 0) {
+                        if (do_single_encryption(ctx, obj, buf, len, (dump && (k < 5))) < 0) {
                             fprintf(stderr, "encryption %d of %d failed\n", k, arr->size);
                             return -1;
                         }
@@ -614,11 +622,11 @@ main (int argc, char **argv)
     char jsondata[8000000], *str;
     unsigned char *ikmE, *pkRm, *ikmS, *pkSm, *ikmR, *pkEm, *psk, *psk_id, *key, *exp, *info, *enc, *tvenc;
     int ikmE_len, pkRm_len, ikmS_len, pkSm_len, ikmR_len, pkEm_len, psk_len, psk_id_len;
-    int key_len, exp_len, info_len, enc_len, tvenc_len;
+    int key_len, exp_len, info_len, enc_len, tvenc_len, dumpnew = 0, dumping = 0;
     hpke_ctx *ctx;
 
     for (;;) {
-        c = getopt(argc, argv, "t:vjhd");
+        c = getopt(argc, argv, "t:vjhdn");
         if (c < 0) {
             break;
         }
@@ -638,6 +646,9 @@ main (int argc, char **argv)
             case 'd':
                 chatty = 1;
                 break;
+            case 'n':
+                dumpnew = 1;
+                break;
             case 'h':
             default:
                 fprintf(stderr, "USAGE: %s -t <tv> [-jvdh]\n"
@@ -645,6 +656,7 @@ main (int argc, char **argv)
                         "\t-j  dump the test vector contents\n"
                         "\t-d  chatty progress of test vectors\n"
                         "\t-v  verbose HPKE output\n"
+                        "\t-n  dump the new AEAD/KEM combos\n"
                         "\t-h  this help message\n",
                         argv[0]);
                 exit(1);
@@ -656,6 +668,7 @@ main (int argc, char **argv)
                 "\t-j  dump the test vector contents\n"
                 "\t-d  chatty progress of test vectors\n"
                 "\t-v  verbose HPKE output\n"
+                "\t-n  dump the new AEAD/KEM combos\n"
                 "\t-h  this help message\n",
                 argv[0]);
         exit(1);
@@ -736,6 +749,32 @@ main (int argc, char **argv)
             s2os(str, len, &tvenc, &tvenc_len);
             len = get_string(t, jsondata, ndata, "exporter_secret", &str);
             s2os(str, len, &exp, &exp_len);
+
+            if (((kem == DHKEM_CP256) || (kem == DHKEM_CP384) || (kem == DHKEM_CP521)) &&
+                ((aead == AES_256_SIV) || (aead == AES_512_SIV)) &&
+                dumpnew) {
+                dumping = 1;
+                printf("mode: %d\n", mode);
+                printf("kem_id: %d\n", kem);
+                printf("kdf_id: %d\n", kdf);
+                printf("aead_id: %d\n", aead);
+                print_buffer("info", info, info_len);
+                print_buffer("ikmE", ikmE, ikmE_len);
+                print_buffer("pkEm", pkEm, pkEm_len);
+//                print_buffer("skEm", skEm, skEm_len);
+                print_buffer("ikmR", ikmR, ikmR_len);
+                print_buffer("pkRm", pkRm, pkRm_len);
+//                print_buffer("skRm", skRm, skRm_len);
+                print_buffer("ikmS", ikmS, ikmS_len);
+                print_buffer("pkSm", pkSm, pkSm_len);
+//                print_buffer("skSm", skSm, skSm_len);
+                print_buffer("psk", psk, psk_len);
+                print_buffer("psk_id", psk_id, psk_id_len);
+                print_buffer("key", key, key_len);
+                print_buffer("enc", tvenc, tvenc_len);
+            } else {
+                dumping = 0;
+            }
             /*
              * do the sender side first...
              */
@@ -743,7 +782,7 @@ main (int argc, char **argv)
                 fprintf(stderr, "%s: unable to create HPKE context!\n", argv[0]);
                 exit(1);
             }
-            if (deb) {
+            if (deb || dumping) {
                 set_hpke_debug(ctx, 1);
             }
             if (derive_ephem_keypair(ctx, ikmE, ikmE_len) < 1) {
@@ -802,7 +841,7 @@ main (int argc, char **argv)
             if (chatty) {
                 printf("send..."); fflush(stdout);
             }
-            if (do_encryptions(ctx, t, jsondata, ndata) < 0) {
+            if (do_encryptions(ctx, t, jsondata, ndata, dumping) < 0) {
                 fprintf(stderr, "Encryption failed!\n");
                 exit(1);
             }
