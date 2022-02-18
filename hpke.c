@@ -40,7 +40,6 @@
 #include <openssl/hmac.h>
 #include <openssl/rand.h>
 #include <openssl/sha.h>
-#include "modes_local.h"
 #include "aes_siv.h"
 #include "hpke_internal.h"
 #include "hkdf.h"
@@ -469,6 +468,8 @@ create_hpke_context (unsigned char mode, uint16_t kem, uint16_t kdf_id, uint16_t
     ctx->aead_id = aead_id;
     ctx->seq = 0;
     ctx->setup = 0;
+    ctx->use_window = 0;
+    ctx->recv_window = 0;
     
     ctx->psk = NULL; ctx->psk_len = 0;
     ctx->psk_id = NULL; ctx->psk_id_len = 0;
@@ -483,6 +484,14 @@ set_hpke_debug (hpke_ctx *ctx, int deb)
 {
     if (ctx != NULL) {
         ctx->debug = deb;
+    }
+}
+
+void
+set_hpke_recv_window (hpke_ctx *ctx, int setting)
+{
+    if (ctx != NULL) {
+        ctx->use_window = setting;
     }
 }
 
@@ -1165,7 +1174,7 @@ export_secret (hpke_ctx *ctx, unsigned char *expctx, int expctx_len, int explen,
  * AES-SIV-(256/512) encrypt-- get a context, aad, plaintext and a type (256 or 512) to produce
  * a ciphertext and tag
  */
-static void
+static int
 siv_wrap (hpke_ctx *ctx, int ver, unsigned char *aad, int aad_len, unsigned char *pt, int pt_len,
           unsigned char *ct, unsigned char *tag)
 {
@@ -1181,7 +1190,7 @@ siv_wrap (hpke_ctx *ctx, int ver, unsigned char *aad, int aad_len, unsigned char
      * component. 
      */
     siv_encrypt(&sivc, pt, ct, pt_len, tag, 1, aad, aad_len);
-    return;
+    return pt_len;
 }
 
 static int
@@ -1213,17 +1222,33 @@ evp_wrap (hpke_ctx *ctx, const EVP_CIPHER *whichone, unsigned char *aad, int aad
             goto fin;
         }
     }
-    if (!EVP_EncryptUpdate(cctx, ct, &len, pt, pt_len)) {
-        fprintf(stderr, "can't update plaintext into encryption context!\n");
-        goto fin;
+    /*
+     * the rolling window option prepends the sequence number to the ciphertext
+     */
+    if (ctx->use_window) {
+        memcpy(ct, (unsigned char *)num, 4);
+        
+        if (!EVP_EncryptUpdate(cctx, ct + 4, &len, pt, pt_len)) {
+            fprintf(stderr, "can't update plaintext into encryption context!\n");
+            goto fin;
+        }
+        if (!EVP_EncryptFinal(cctx, ct + 4 + len, &len)) {
+            fprintf(stderr, "can't finalize encryption context!\n");
+            ret = -1;
+            goto fin;
+        }
+    } else {
+        if (!EVP_EncryptUpdate(cctx, ct, &len, pt, pt_len)) {
+            fprintf(stderr, "can't update plaintext into encryption context!\n");
+            goto fin;
+        }
+        if (!EVP_EncryptFinal(cctx, ct + len, &len)) {
+            fprintf(stderr, "can't finalize encryption context!\n");
+            ret = -1;
+            goto fin;
+        }
     }
-    ret = len;
-    if (!EVP_EncryptFinal(cctx, ct + len, &len)) {
-        fprintf(stderr, "can't finalize encryption context!\n");
-        ret = -1;
-        goto fin;
-    }
-    ret += len;
+    ret = ctx->use_window ? pt_len + 4 : pt_len;
     if (!EVP_CIPHER_CTX_ctrl(cctx, EVP_CTRL_AEAD_GET_TAG, 16, tag)) {
         fprintf(stderr, "can't get tag from encryption context!\n");
         ret = -1;
@@ -1243,33 +1268,35 @@ int
 wrap (hpke_ctx *ctx, unsigned char *aad, int aad_len, unsigned char *pt, int pt_len,
       unsigned char *ct, unsigned char *tag)
 {
+    int ct_len;
+
     if (ctx == NULL) {
         return 0;
     }
     switch (ctx->aead_id) {
         case AES_128_GCM:
-            if (evp_wrap(ctx, EVP_aes_128_gcm(), aad, aad_len, pt, pt_len, ct, tag) < 0) {
+            if ((ct_len = evp_wrap(ctx, EVP_aes_128_gcm(), aad, aad_len, pt, pt_len, ct, tag)) < 0) {
                 return 0;
             }
             break;
         case AES_256_GCM:
-            if (evp_wrap(ctx, EVP_aes_256_gcm(), aad, aad_len, pt, pt_len, ct, tag) < 0) {
+            if ((ct_len = evp_wrap(ctx, EVP_aes_256_gcm(), aad, aad_len, pt, pt_len, ct, tag)) < 0) {
                 return 0;
             }
             break;
         case AES_256_SIV:
-            siv_wrap(ctx, SIV_256, aad, aad_len, pt, pt_len, ct, tag);
+            ct_len = siv_wrap(ctx, SIV_256, aad, aad_len, pt, pt_len, ct, tag);
             break;
         case AES_512_SIV:
-            siv_wrap(ctx, SIV_512, aad, aad_len, pt, pt_len, ct, tag);
+            ct_len = siv_wrap(ctx, SIV_512, aad, aad_len, pt, pt_len, ct, tag);
             break;
         case ChaCha20Poly:
-            if (evp_wrap(ctx, EVP_chacha20_poly1305(), aad, aad_len, pt, pt_len, ct, tag) < 0) {
+            if ((ct_len = evp_wrap(ctx, EVP_chacha20_poly1305(), aad, aad_len, pt, pt_len, ct, tag)) < 0) {
                 return 0;
             }
             break;
     }
-    return pt_len;
+    return ct_len;
 }
 
 /*
@@ -1285,6 +1312,62 @@ siv_unwrap (hpke_ctx *ctx, int ver, unsigned char *aad, int aad_len, unsigned ch
     return siv_decrypt(&sivc, ct, pt, ct_len, tag, 1, aad, aad_len);
 }
 
+/*
+ * conditional check on received sequence number
+ */
+static int
+good_seq (hpke_ctx *ctx, uint32_t seq)
+{
+    uint32_t diff;
+
+    if (seq > ctx->seq) {
+        return 1;
+    }
+    /*
+     * too old is bad, so is "seen already", otherwise good!
+     */
+    diff = ctx->seq - seq;
+    if (diff > WINDOW_SIZE) {
+        return 0;
+    }
+    if (ctx->recv_window & (1 << diff)) {
+        return 0;
+    }
+    return 1;
+}
+
+/*
+ * mark a sequence number as used in the rolling window, roll the window if necessary
+ */
+static void
+update_window(hpke_ctx *ctx, uint32_t seq)
+{
+    uint32_t diff;
+    
+    if (seq > ctx->seq) {
+        /*
+         * highest we've seen, advance window
+         */
+        diff = seq - ctx->seq;
+        if (diff < WINDOW_SIZE) {
+            ctx->recv_window <<= diff;
+            ctx->recv_window |= (uint32_t)1;
+        } else {
+            ctx->recv_window = 1;
+        }
+        ctx->seq = seq;
+    } else {
+        /*
+         * older, but still young, mark seen
+         */
+        diff = ctx->seq - seq;
+        if (diff < WINDOW_SIZE) {       /* should always be the case but, just in case... */
+            ctx->recv_window |= ((uint32_t)1 << diff);
+        }
+    }
+    return;
+}
+
 static int
 evp_unwrap (hpke_ctx *ctx, const EVP_CIPHER *whichone, unsigned char *aad, int aad_len,
             unsigned char *ct, int ct_len, unsigned char *pt, unsigned char *tag)
@@ -1292,15 +1375,26 @@ evp_unwrap (hpke_ctx *ctx, const EVP_CIPHER *whichone, unsigned char *aad, int a
     EVP_CIPHER_CTX *cctx = NULL;
     int ret = -1, len = 0;
     unsigned char sequence[12], num[4];
+    uint32_t seq;
 
-    PUTU32(num, ctx->seq);
+    if (ctx->use_window) {
+        memcpy(num, ct, 4);
+        seq = GETU32(ct);
+    } else {
+        PUTU32(num, ctx->seq);
+    }
     memcpy(sequence, ctx->base_nonce, ctx->Nn);
     sequence[11] ^= num[3];
     sequence[10] ^= num[2];
     sequence[9]  ^= num[1];
     sequence[8]  ^= num[0];
-    ctx->seq++;
 
+    if (ctx->use_window) {
+        if (!good_seq(ctx, seq)) {
+            fprintf(stderr, "bad sequence number!\n");
+            goto fin;
+        }
+    }
     if ((cctx = EVP_CIPHER_CTX_new()) == NULL) {
         goto fin;
     }
@@ -1314,9 +1408,19 @@ evp_unwrap (hpke_ctx *ctx, const EVP_CIPHER *whichone, unsigned char *aad, int a
             goto fin;
         }
     }
-    if (!EVP_DecryptUpdate(cctx, pt, &len, ct, ct_len)) {
-        fprintf(stderr, "can't update plaintext into encryption context!\n");
-        goto fin;
+    if (ctx->use_window) {
+        /*
+         * if we got the sequence number, skip over it when decrypting
+         */
+        if (!EVP_DecryptUpdate(cctx, pt, &len, ct+4, ct_len-4)) {
+            fprintf(stderr, "can't update plaintext into encryption context!\n");
+            goto fin;
+        }
+    } else {
+        if (!EVP_DecryptUpdate(cctx, pt, &len, ct, ct_len)) {
+            fprintf(stderr, "can't update plaintext into encryption context!\n");
+            goto fin;
+        }
     }
     ret = len;
     if (!EVP_CIPHER_CTX_ctrl(cctx, EVP_CTRL_AEAD_SET_TAG, 16, tag)) {
@@ -1324,12 +1428,19 @@ evp_unwrap (hpke_ctx *ctx, const EVP_CIPHER *whichone, unsigned char *aad, int a
         ret = -1;
         goto fin;
     }
-    if (!EVP_DecryptFinal(cctx, pt + len, &len)) {
+    if ((ret = EVP_DecryptFinal(cctx, pt + len, &len)) == 0) {
         fprintf(stderr, "can't finalize decryption context!\n");
         ret = -1;
         goto fin;
     }
-    ret = len;
+    if (ctx->use_window) {
+        /*
+         * ctx->seq will be updated, if needed by update_window()
+         */
+        update_window(ctx, seq);
+    } else {
+        ctx->seq++;
+    }
 fin:        
     if (cctx != NULL) {
         EVP_CIPHER_CTX_free(cctx);

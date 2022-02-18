@@ -82,6 +82,9 @@ typedef struct _hpke_ctx {
     char *psk_id;
     int psk_id_len;
     uint32_t seq;
+    unsigned char use_window;
+#define WINDOW_SIZE 32
+    uint32_t recv_window;
 } hpke_ctx;
 
 /*

@@ -557,6 +557,7 @@ do_single_encryption (hpke_ctx *ctx, jsmntok_t *tok, char *buf, int len, int dum
         print_buffer("pt", pt, pt_len);
         print_buffer("aad", aad, aad_len);
         print_buffer("ct", ct, ct_len);
+        print_buffer("myct", myct, ct_len);
     }
     free(myct);
     free(aad);
@@ -622,7 +623,7 @@ main (int argc, char **argv)
     char jsondata[8000000], *str;
     unsigned char *ikmE, *pkRm, *ikmS, *pkSm, *ikmR, *pkEm, *psk, *psk_id, *key, *exp, *info, *enc, *tvenc;
     int ikmE_len, pkRm_len, ikmS_len, pkSm_len, ikmR_len, pkEm_len, psk_len, psk_id_len;
-    int key_len, exp_len, info_len, enc_len, tvenc_len, dumpnew = 0, dumping = 0;
+    int key_len, exp_len, info_len, enc_len, tvenc_len, dumpnew = 0, dumping = 1;
     hpke_ctx *ctx;
 
     for (;;) {

@@ -81,12 +81,12 @@ main (int argc, char **argv)
     int c, b64 = 0, pad = 0;
     hpke_ctx *ctx = NULL;
     unsigned char *aad = NULL, *info = NULL, *pt = NULL, *ct = NULL, *pkR = NULL, *k = NULL, *enc;
-    int aad_len = 0, info_len = 0, t_len = 0, pkR_len = 0, debug = 0, enc_len;
+    int aad_len = 0, info_len = 0, pt_len = 0, ct_len = 0, pkR_len = 0, debug = 0, win = 0, enc_len;
     unsigned char *b64enc, *b64ct;
     int b64enc_len, b64ct_len;
 
     for (;;) {
-        c = getopt(argc, argv, "a:i:p:c:k:d:bhf");
+        c = getopt(argc, argv, "a:i:p:c:k:d:bhw");
         if (c < 0) {
             break;
         }
@@ -99,7 +99,8 @@ main (int argc, char **argv)
                 break;
             case 'p':
                 pt = optarg;
-                t_len = strlen(optarg);
+                pt_len = strlen(optarg);
+                ct_len += pt_len;
                 break;
             case'k':
                 k = optarg;
@@ -110,14 +111,18 @@ main (int argc, char **argv)
             case 'b':
                 b64 = 1;
                 break;
+            case 'w':
+                win = 1;
+                break;
             case 'h':
             default:
                 fprintf(stderr, "USAGE: %s [-aikspbh]\n"
                         "\t-a  some AAD to include in the wrapping\n"
                         "\t-i  some info to include in the wrapping\n"
-                        "\t-k  the recipient's public key in SECG uncompressed form\n"
+                        "\t-k  the recipient's public key\n"
                         "\t-p  the plaintext to wrap\n"
                         "\t-b  base64 encode the output (and base64 decode what's in -k)\n"
+                        "\t-w  include sequence number in ciphertext for receiver window\n"
                         "\t-h  this help message\n",
                         argv[0]);
                 exit(1);
@@ -160,6 +165,7 @@ main (int argc, char **argv)
                 fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
                 exit(1);
             }
+            win = 0;    // unset if set, this is deterministic so no window needed
             break;
         case 48:
             /*
@@ -170,6 +176,7 @@ main (int argc, char **argv)
                 fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
                 exit(1);
             }
+            win = 0;    // unset if set, this is deterministic so no window needed
             break;
         case 65:
             /*
@@ -191,6 +198,7 @@ main (int argc, char **argv)
                 fprintf(stderr, "%s: can't create HPKE context!\n", argv[0]);
                 exit(1);
             }
+            win = 0;    // unset if set, this is deterministic so no window needed
             break;
         case 97:
             /*
@@ -217,17 +225,25 @@ main (int argc, char **argv)
             exit(1);
     }
     set_hpke_debug(ctx, debug);
-
+    if (win) {
+        ct_len += 4;
+        set_hpke_recv_window(ctx, 1);   /* prepend sequence number to cipher text */
+    }
+    
     if (sender(ctx, pkR, pkR_len, info, info_len, NULL, 0, NULL, 0, &enc, &enc_len) < 1) {
         fprintf(stderr, "%s: can't do encap!\nTry again with -f maybe\n", argv[0]);
         exit(1);
     }
 
-    if ((ct = malloc(t_len+16)) == NULL) {
+    if ((ct = malloc(ct_len + 16)) == NULL) {
         fprintf(stderr, "can't allocate space for ciphertext!\n");
         exit(1);
     }
-    wrap(ctx, aad, aad_len, pt, t_len, ct+16, ct);
+
+    if (wrap(ctx, aad, aad_len, pt, pt_len, ct+16, ct) != ct_len) {
+        fprintf(stderr, "expected to wrap %d....\n", ct_len);
+        // don't make this fatal, it won't unwrap if it's garbage
+    }
 
     if (b64) {
         if ((b64enc = (unsigned char *)malloc(enc_len*2)) == NULL) {
@@ -237,12 +253,12 @@ main (int argc, char **argv)
         memset(b64enc, 0, (enc_len*2));
         b64enc_len = EVP_EncodeBlock(b64enc, enc, enc_len);
 
-        if ((b64ct = (unsigned char *)malloc((t_len+16)*2)) == NULL) {
+        if ((b64ct = (unsigned char *)malloc((ct_len+16)*2)) == NULL) {
             fprintf(stderr, "%s: unable to allocate room to encode ephemeral public key!\n", argv[0]);
             exit(1);
         }
-        memset(b64ct, 0, (t_len+16)*2);
-        b64ct_len = EVP_EncodeBlock(b64ct, ct, t_len + 16);
+        memset(b64ct, 0, (ct_len+16)*2);
+        b64ct_len = EVP_EncodeBlock(b64ct, ct, ct_len + 16);
         /*
          * do some pseudo-PEM nonsense to pretty-print this goo
          */
@@ -255,7 +271,7 @@ main (int argc, char **argv)
         free(b64ct);
     } else {
         print_buffer("enc:", enc, enc_len);
-        print_buffer("ct:", ct, t_len + 16);
+        print_buffer("ct:", ct, ct_len + 16);
     }
     free_hpke_context(ctx);
     free(ct);

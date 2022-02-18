@@ -1,9 +1,11 @@
 # hpke-wrap
 
-Implementation of Hybrid Public Key Encryption (draft-irtf-cfrg-hpke-08)
+Implementation of Hybrid Public Key Encryption (draft-irtf-cfrg-hpke-12)
 
-  Also supports compact representation for the NIST curves in the form of additional
-  KEMs-- 19 for p256, 20 for p384, and 21 for p521-- as well as AES-SIV as an AEAD.
+  Supports proposed compact representation for the NIST curves in the form of additional
+  KEMs-- 19 for p256, 20 for p384, and 21 for p521-- as well as AES-SIV as an AEAD. Also
+  supports a mode where a rolling receiver window is used to handle use of HPKE in
+  lossy networks. 
 
   Note: all modes are supported but only KEMs with NIST curves.
 
@@ -28,6 +30,12 @@ Exported APIs
 -------------
 
 All the code lives in hpke.c and apps that call these APIs need to include hpke.h.
+This implementation has an unexported .h file, hpke_internal.h, which is used
+by hpke.c but no one who calls hpke.c
+
+aes_siv.[ch] is an implementation of RFC 5297. hkdf.[ch] is an implementation of
+RFC 5869. jsmn.[ch] is some code written by Serge. A Zaitsev (spasibo, Serge!) to
+parse json and is used to process the test vectors.
 
 * HPKE Context
 
@@ -44,12 +52,27 @@ All the code lives in hpke.c and apps that call these APIs need to include hpke.
 
   ctx = create_hpke_context(mode, kem_id, kdf_id, aead_id);
 
-  Debugging for certain internal state can be turned on and off in a context
+  Debugging for certain internal state can be turned on and off in a context:
 
   set_hpke_debug(ctx, debugging)
 
     - if debugging is non-zero internal state will be printed to standard out if it's
       zero then it will not be printed
+
+
+  A receive window to address packet replay on lossy networks (where packets can
+  be dropped and reordered) can be added by setting this capability in both the
+  sender and receiver contexts:
+  
+      NOTE: this capability is NOT in the HPKE spec and the proposal to add it
+      is still in the works.
+
+  set_hpke_recv_window(ctx, setting)
+
+    - if setting is non-zero the sender will include the sequence number used to
+      construct the AEAD counter as part of the ciphertext and the receiver will
+      parse ciphertext as if that sequence number is there and use it as part of
+      its receive window processing
 
   A context is freed when not needed anymore
   
@@ -145,15 +168,10 @@ hpke_genkey.c
   the input keying material is used to generate the local identity key when
   you receive something encrypted with your public key.
 
-hpke_test.c
-
-  Validates some of the test vectors from the -06 version of the draft as well
-  as some AES-SIV test vectors that aren't
-
 parse_tv.c 
 
   Take the JSON verson of the test vectors and go through them all, testing
-  all of the KEMs that use the NIST curves. Works with the -07 test vectors.
+  all of the KEMs that use the NIST curves. 
 
   USAGE: ./parse_tv -t <tv> [-jvdh]
         -t  the JSON test vectors
@@ -173,7 +191,7 @@ hpke_wrap.c
         -k  the recipient's public key
         -p  the plaintext to wrap
         -b  base64 encode the output
-	-f  force compact representation for ambiguously sized public keys
+	-w  include sequence number in ciphertext
         -h  this help message
 
 hpke_unwrap.c
@@ -188,10 +206,11 @@ hpke_unwrap.c
         -r  keying material to derive receiver's keypair
         -c  the ciphertext to unwrap
         -b  base64 decode the input prior to processing
-	-f  force compact representation for ambiguously sized public keys
+	-w  implement a rolling receive window with sequence number from ciphertext
         -h  this help message
 
-NOTE: for both hpke_wrap and hpke_unwrap, a compact p521 key is the same size as an
-ucompressed p256 key. The routines make an educated guess but if wrapping/unwrapping
-fails try again with -f and see if it works.
+test-vectors-dnhpke.json
+
+  A copy of the -09 test vectors plus new ones for compressed KEMs and deterministic AEAD
+
 

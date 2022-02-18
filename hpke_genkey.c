@@ -107,7 +107,7 @@ main (int argc, char **argv)
 
     if (!kem) {
         fprintf(stderr, "USAGE: %s [-bh]\n"
-                "\t-k  kem the key will be for (16=p256, 17=p384, 18=p521)\n"
+                "\t-k  kem the key will be for (16=p256, 17=p384, 18=p521, 19=cp256, 20=cp384, 21=cp521)\n"
                 "\t-b  base64 encode the output\n"
                 "\t-h  this help message\n",
                 argv[0]);

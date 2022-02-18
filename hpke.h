@@ -74,6 +74,7 @@ int export_secret(hpke_ctx *, unsigned char *, int, int, unsigned char **);
 int wrap(hpke_ctx *, unsigned char *, int, unsigned char *, int, unsigned char *, unsigned char *);
 int unwrap(hpke_ctx *, unsigned char *, int, unsigned char *, int, unsigned char *, unsigned char *);
 void set_hpke_debug(hpke_ctx *, int);
+void set_hpke_recv_window(hpke_ctx *, int);
 
 #endif  /* _HPKE_H_ */
 

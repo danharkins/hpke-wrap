@@ -95,10 +95,10 @@ main (int argc, char **argv)
     hpke_ctx *ctx = NULL;
     unsigned char *c = NULL, *k = NULL, *r = NULL, *ikmR = NULL;
     unsigned char *aad = NULL, *info = NULL, *pt = NULL, *ct = NULL, *pkS = NULL;
-    int aad_len = 0, info_len = 0, t_len = 0, pkS_len = 0, ikmR_len = 0, debug = 0;
+    int aad_len = 0, info_len = 0, ct_len = 0, pt_len = 0, pkS_len = 0, ikmR_len = 0, debug = 0, roll_win = 0;
 
     for (;;) {
-        x = getopt(argc, argv, "a:i:p:c:k:r:d:bfh");
+        x = getopt(argc, argv, "a:i:p:c:k:r:d:bhw");
         if (x < 0) {
             break;
         }
@@ -124,15 +124,19 @@ main (int argc, char **argv)
             case 'b':
                 b64 = 1;
                 break;
+            case 'w':
+                roll_win = 1;
+                break;
             case 'h':
             default:
                 fprintf(stderr, "USAGE: %s [-aikrscbh]\n"
                         "\t-a  some AAD to include in the unwrapping\n"
                         "\t-i  some info to include in the unwrapping\n"
-                        "\t-k  the sender's public key in SECG uncompressed form\n"
+                        "\t-k  the sender's public key\n"
                         "\t-r  keying material to derive receiver's keypair\n"
                         "\t-c  the ciphertext to unwrap\n"
                         "\t-b  base64 decode the input prior to processing\n"
+                        "\t-w  implement a rolling receive window\n"
                         "\t-h  this help message\n",
                         argv[0]);
                 exit(1);
@@ -175,18 +179,22 @@ main (int argc, char **argv)
             exit(1);
         }
         memset(ct, 0, strlen(c));
-        t_len = EVP_DecodeBlock(ct, c, strlen(c));
+        ct_len = EVP_DecodeBlock(ct, c, strlen(c));
         pad = strlen(c);
         while (c[pad - 1] == '=') {
-            t_len--;
+            ct_len--;
             pad--;
         }
     } else {
         s2os(r, &ikmR, &ikmR_len);
         s2os(k, &pkS, &pkS_len);
-        s2os(c, &ct, &t_len);
+        s2os(c, &ct, &ct_len);
     }
 
+    pt_len = ct_len;
+    if (roll_win) {     /* if we're implementing a rolling window, the sequence */
+        pt_len -= 4;    /* number is the first 4 octets of the ciphertext */
+    }
     switch (pkS_len) {
         case 32:
             /*
@@ -254,6 +262,7 @@ main (int argc, char **argv)
             exit(1);
     }
     set_hpke_debug(ctx, debug);
+    set_hpke_recv_window(ctx, roll_win);
 
     if (derive_local_static_keypair(ctx, ikmR, ikmR_len) < 1) {
         fprintf(stderr, "%s: can't fix static keypair to unwrap!\nTry again with -f maybe\n", argv[0]);
@@ -265,14 +274,16 @@ main (int argc, char **argv)
         exit(1);
     }
 
-    if ((pt = malloc(t_len)) == NULL) {
+    if ((pt = malloc(pt_len)) == NULL) {
         fprintf(stderr, "can't allocate space for plaintext!\n");
         exit(1);
     }
-    memset(pt, 0, t_len);
-    unwrap(ctx, aad, aad_len, ct+16, t_len - 16, pt, ct);
-
-    printf("plaintext: %s\n", pt);
+    memset(pt, 0, pt_len);
+    if (unwrap(ctx, aad, aad_len, ct+16, ct_len - 16, pt, ct) < 1) {
+        fprintf(stderr, "unable to decrypt ciphertext!\n");
+    } else {
+        printf("plaintext: %s\n", pt);
+    }
 
     free_hpke_context(ctx);
     if (aad != NULL) {
