@@ -49,8 +49,8 @@
 #define AES_128_GCM     0x0001
 #define AES_256_GCM     0x0002
 #define ChaCha20Poly    0x0003
-#define AES_256_SIV     0x0004
-#define AES_512_SIV     0x0005
+#define AES_256_SIV     0x8000
+#define AES_512_SIV     0x8001
 #define EXPORTER_ONLY   0xffff
 
 #define MODE_BASE       0x00

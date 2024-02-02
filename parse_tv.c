@@ -557,7 +557,7 @@ do_single_encryption (hpke_ctx *ctx, jsmntok_t *tok, char *buf, int len, int dum
         print_buffer("pt", pt, pt_len);
         print_buffer("aad", aad, aad_len);
         print_buffer("ct", ct, ct_len);
-        print_buffer("myct", myct, ct_len);
+//        print_buffer("myct", myct, ct_len);
     }
     free(myct);
     free(aad);
@@ -755,7 +755,7 @@ main (int argc, char **argv)
                 ((aead == AES_256_SIV) || (aead == AES_512_SIV)) &&
                 dumpnew) {
                 dumping = 1;
-                printf("mode: %d\n", mode);
+                printf("\nmode: %d\n", mode);
                 printf("kem_id: %d\n", kem);
                 printf("kdf_id: %d\n", kdf);
                 printf("aead_id: %d\n", aead);
